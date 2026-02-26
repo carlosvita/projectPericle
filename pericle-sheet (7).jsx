@@ -1,0 +1,2248 @@
+import { useState, useCallback, useRef, useEffect } from "react";
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+
+const ARMORS = [
+  { name: "Leather Armor", armor: 1, adPen: -1, mvPen: "0", val: 7 },
+  { name: "Gambeson Armor (Padded Cloth)", armor: 2, adPen: -2, mvPen: "-1 Hex", val: 8 },
+  { name: "Chainmail Armor", armor: 3, adPen: -3, mvPen: "-2 Hex", val: 10 },
+  { name: "Breastplate Armor", armor: 3, adPen: -3, mvPen: "-1 Hex", val: 40 },
+  { name: "Scale Mail Armor", armor: 4, adPen: -4, mvPen: "-2 Hex", val: 12 },
+  { name: "Brigandine Armor", armor: 4, adPen: -4, mvPen: "-1 Hex", val: 50 },
+  { name: "Plate Armor", armor: 5, adPen: -5, mvPen: "-2 Hex", val: 14 },
+  { name: "Buckler Shield", armor: 1, adPen: 0, mvPen: "N/A", val: 5 },
+  { name: "Round Shield", armor: 2, adPen: -1, mvPen: "N/A", val: 5 },
+  { name: "Heater Shield", armor: 3, adPen: -2, mvPen: "N/A", val: 5 },
+  { name: "Kite Shield", armor: 4, adPen: -3, mvPen: "N/A", val: 5 },
+  { name: "Pavise Shield", armor: 3, adPen: -4, mvPen: "N/A", val: 8 },
+];
+
+const WEAPONS = [
+  { mt:1, name:"Throwing Axe", cls:"Axe", ability:"+1 Damage", critical:"Bleed", damage:"1d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:true, grapple:false, reload:false, twoHanded:false, val:5 },
+  { mt:2, name:"Hatchet", cls:"Axe", ability:"+1 Damage", critical:"Bleed", damage:"2d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:true, grapple:false, reload:false, twoHanded:false, val:10 },
+  { mt:3, name:"Hand Axe", cls:"Axe", ability:"+1 Damage", critical:"Bleed", damage:"1d6+1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:true, grapple:false, reload:false, twoHanded:false, val:15 },
+  { mt:4, name:"Bearded Axe", cls:"Axe", ability:"+1 Damage", critical:"Bleed", damage:"2d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:20 },
+  { mt:6, name:"Great Axe", cls:"Axe", ability:"+1 Damage", critical:"Bleed", damage:"2d6+1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:30 },
+  { mt:1, name:"Short Bow", cls:"Bow", ability:"Attack from Distance", critical:"Pin", damage:"1d4", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:false, twoHanded:true, val:5 },
+  { mt:2, name:"Recurve Bow", cls:"Bow", ability:"Attack from Distance", critical:"Pin", damage:"1d6", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:false, twoHanded:true, val:10 },
+  { mt:3, name:"War Bow", cls:"Bow", ability:"Attack from Distance", critical:"Pin", damage:"2d4", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:false, twoHanded:true, val:20 },
+  { mt:4, name:"Longbow", cls:"Bow", ability:"Attack from Distance", critical:"Pin", damage:"1d6+1d4", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:false, twoHanded:true, val:25 },
+  { mt:5, name:"Heavy Longbow", cls:"Bow", ability:"Attack from Distance", critical:"Pin", damage:"2d6", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:false, twoHanded:true, val:30 },
+  { mt:2, name:"Hand Crossbow", cls:"Crossbow", ability:"Attack from Distance", critical:"Pin", damage:"1d6", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:true, twoHanded:true, val:10 },
+  { mt:3, name:"Light Crossbow", cls:"Crossbow", ability:"Attack from Distance", critical:"Pin", damage:"2d4", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:true, twoHanded:true, val:15 },
+  { mt:4, name:"Guard's Crossbow", cls:"Crossbow", ability:"Attack from Distance", critical:"Pin", damage:"1d6+1d4", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:true, twoHanded:true, val:20 },
+  { mt:5, name:"War Crossbow", cls:"Crossbow", ability:"Attack from Distance", critical:"Pin", damage:"2d6", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:true, twoHanded:true, val:25 },
+  { mt:6, name:"Heavy Crossbow", cls:"Crossbow", ability:"Attack from Distance", critical:"Pin", damage:"3d4", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:true, twoHanded:true, val:30 },
+  { mt:0, name:"Sap", cls:"Hammer", ability:"2 Armor Penetration", critical:"Stun", damage:"1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:0 },
+  { mt:1, name:"Club", cls:"Hammer", ability:"2 Armor Penetration", critical:"Stun", damage:"1d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:5 },
+  { mt:1, name:"Hammer", cls:"Hammer", ability:"2 Armor Penetration", critical:"Stun", damage:"1d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:5 },
+  { mt:2, name:"Quarterstaff", cls:"Hammer", ability:"2 Armor Penetration", critical:"Stun", damage:"2d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:10 },
+  { mt:3, name:"Mace", cls:"Hammer", ability:"2 Armor Penetration", critical:"Stun", damage:"1d6+1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:15 },
+  { mt:4, name:"Morning Star", cls:"Hammer", ability:"2 Armor Penetration", critical:"Stun", damage:"2d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:20 },
+  { mt:5, name:"War Hammer", cls:"Hammer", ability:"2 Armor Penetration", critical:"Stun", damage:"3d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:25 },
+  { mt:5, name:"Flail", cls:"Hammer", ability:"2 Armor Penetration", critical:"Stun", damage:"1d6+2d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:25 },
+  { mt:6, name:"Great Club", cls:"Hammer", ability:"2 Armor Penetration", critical:"Stun", damage:"2d6+1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:30 },
+  { mt:7, name:"Maul", cls:"Hammer", ability:"2 Armor Penetration", critical:"Stun", damage:"3d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:35 },
+  { mt:0, name:"Wand", cls:"Mage", ability:"", critical:"", damage:"N/A", hex1:false, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:0 },
+  { mt:1, name:"Staff", cls:"Mage", ability:"", critical:"", damage:"1d6", hex1:false, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:5 },
+  { mt:4, name:"Great Staff", cls:"Mage", ability:"", critical:"", damage:"2d6", hex1:false, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:20 },
+  { mt:1, name:"Javelin", cls:"Polearm", ability:"", critical:"Trip", damage:"1d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:true, grapple:false, reload:false, twoHanded:false, val:5 },
+  { mt:2, name:"Short Spear", cls:"Polearm", ability:"", critical:"Trip", damage:"2d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:true, grapple:false, reload:false, twoHanded:false, val:10 },
+  { mt:3, name:"Spear", cls:"Polearm", ability:"Reach", critical:"Trip", damage:"1d6+1d4", hex1:true, hex2:true, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:15 },
+  { mt:4, name:"Voulge", cls:"Polearm", ability:"Reach", critical:"Trip", damage:"2d6", hex1:true, hex2:true, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:20 },
+  { mt:5, name:"Glaive", cls:"Polearm", ability:"Reach", critical:"Trip", damage:"1d6+2d4", hex1:true, hex2:true, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:25 },
+  { mt:6, name:"Halberd", cls:"Polearm", ability:"Reach", critical:"Trip", damage:"2d6+1d4", hex1:true, hex2:true, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:30 },
+  { mt:0, name:"Dart", cls:"Simple", ability:"Attack from Distance", critical:"Pin", damage:"1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:true, grapple:false, reload:false, twoHanded:false, val:0 },
+  { mt:1, name:"Sling", cls:"Simple", ability:"Attack from Distance", critical:"Pin", damage:"1d4", hex1:false, hex2:false, hex3:false, ranged:true, thrown:false, grapple:false, reload:false, twoHanded:false, val:5 },
+  { mt:1, name:"Cestus", cls:"Special", ability:"Grapple", critical:"N/A", damage:"1d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:true, reload:false, twoHanded:false, val:5 },
+  { mt:2, name:"Katar", cls:"Special", ability:"+1 AD, Grapple", critical:"Disarm", damage:"2d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:true, reload:false, twoHanded:false, val:10 },
+  { mt:3, name:"Khopesh", cls:"Special", ability:"+1 AD and optional Trap", critical:"Disarm", damage:"1d6+1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:15 },
+  { mt:4, name:"Pike", cls:"Special", ability:"Reach", critical:"Trip", damage:"2d6", hex1:false, hex2:true, hex3:true, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:20 },
+  { mt:5, name:"Polehammer", cls:"Special", ability:"Reach, 2 Armor Penetration", critical:"Trip or Stun", damage:"1d6+2d4", hex1:true, hex2:true, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:25 },
+  { mt:5, name:"Poleaxe", cls:"Special", ability:"+1 Damage, Reach", critical:"Trip or Bleed", damage:"1d6+2d4", hex1:true, hex2:true, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:25 },
+  { mt:6, name:"Bardiche", cls:"Special", ability:"Reach and +1 Damage", critical:"Trip or Bleed", damage:"2d6+1d4", hex1:true, hex2:true, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:30 },
+  { mt:0, name:"Knife", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:true, grapple:true, reload:false, twoHanded:false, val:0 },
+  { mt:1, name:"Dagger", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"1d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:true, grapple:true, reload:false, twoHanded:false, val:11 },
+  { mt:2, name:"Rapier", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"2d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:12 },
+  { mt:3, name:"Short Sword", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"1d6+1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:13 },
+  { mt:3, name:"Scimitar", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"1d6+1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:15 },
+  { mt:4, name:"Saber", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"2d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:14 },
+  { mt:4, name:"Falcata", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"2d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:20 },
+  { mt:4, name:"Arming Sword", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"2d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:20 },
+  { mt:5, name:"Falchion", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"3d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:15 },
+  { mt:5, name:"Bastard Sword (1H)", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"3d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:false, val:16 },
+  { mt:5, name:"Bastard Sword (2H)", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"1d6+2d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:16 },
+  { mt:6, name:"Longsword", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"2d6+1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:17 },
+  { mt:6, name:"Broadsword", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"2d6+1d4", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:30 },
+  { mt:7, name:"Greatsword", cls:"Sword", ability:"+1 AD", critical:"Disarm", damage:"3d6", hex1:true, hex2:false, hex3:false, ranged:false, thrown:false, grapple:false, reload:false, twoHanded:true, val:18 },
+];
+
+const STANDARD_ITEMS = [
+  { name:"Artifact", description:"+1 em testes de Lore. Deve ser segurado em uma mão para usar.", value:"15" },
+  { name:"Boon Elixir", description:"Aumenta temporariamente uma habilidade à escolha do utilizador (MT, DX, KN) em 1 ponto. Dura até ao final do dia.", value:"40" },
+  { name:"Books", description:"+1 em testes de KN, exceto testes opostos para resistir a feitiços. Deve estar em mãos para o bónus fazer efeito.", value:"3" },
+  { name:"Climbing Kit", description:"+1 em testes de Athletics para escalar. Contém corda, gancho e pítons.", value:"5" },
+  { name:"Cloak", description:"+1 em testes de Scoundrel para furtividade (sneaking).", value:"8" },
+  { name:"Crowbar", description:"+1 para levantar/mover objetos ou abrir portas. Requer as duas mãos para usar.", value:"3" },
+  { name:"Fine Attire & Makeup", description:"+1 em testes de Persuasion.", value:"12" },
+  { name:"Fine Boots", description:"+1 em testes de Athletics para saltar e realizar acrobacias (tumbling).", value:"10" },
+  { name:"Gloves", description:"+1 em testes de DX.", value:"5" },
+  { name:"Healing Berry", description:"Consumir uma baga cura 1 ponto de dano.", value:"14" },
+  { name:"Healing Salve", description:"Aplicar a pomada cura 3 pontos de dano.", value:"26" },
+  { name:"Lenses", description:"+1 em testes de Perception.", value:"12" },
+  { name:"Lockpick Kit", description:"+1 em testes de Scoundrel para abrir fechaduras.", value:"5" },
+  { name:"Potion of Healing", description:"Cura 1d6 com Fortune. Lança-se 2d6 e utiliza-se o resultado mais alto para determinar os pontos de dano restaurados.", value:"32" },
+  { name:"Travel Kit", description:"+1 em testes de Navigation. Deve ser segurado com as duas mãos. Contém mapas, bússola e luneta.", value:"5" },
+];
+
+const DISCIPLINES = [
+  { kn:0, name:"Acrobatics I", description:"Ganha AD+1 ao realizar Testes de Atletismo (rola todos os Testes de Atletismo como se tivesse 1 rank a mais). Além disso, pode levantar-se de prone usando toda a sua Fase de Movimento em vez de um turno completo. Pode adicionar os seus ranks base em Atletismo à sua pontuação de Grapple ao tentar evitar ser agarrado ou ao tentar escapar de um Grapple.", requisite:"", xp:4 },
+  { kn:0, name:"Arbalist I", description:"Ganha AD+1 ao atacar com uma besta.", requisite:"", xp:5 },
+  { kn:0, name:"Armor Proficiency I", description:"Permite usar armadura com penalidade de Movimento reduzida. Ao usar armadura de placas ou cota de malha, o seu Movimento é 4 em vez de 3. Ao usar armadura Gambeson (tecido), o seu Movimento é 5 em vez de 4.", requisite:"", xp:6 },
+  { kn:0, name:"Dodge Projectiles", description:"Os seus inimigos têm AD-1 nos ataques para o acertar com um ataque à distância ou Feitiço.", requisite:"", xp:4 },
+  { kn:0, name:"Grappler I", description:"Ganha AD+1 adicional nas suas rolagens de Grapple.", requisite:"", xp:4 },
+  { kn:0, name:"Quick Jab", description:"Ao escolher atacar com um dardo ou lança durante a sua Fase de Ação, pode fazer um ataque adicional a AD-3. O ataque adicional pode ser usado em conjunto com outras Disciplinas que adicionam ataques, como Shield Bash.", requisite:"", xp:10 },
+  { kn:0, name:"Quick Study", description:"Aumentar o seu MT, DX ou KN requer 1 XP a menos do que o normal.", requisite:"", xp:5 },
+  { kn:0, name:"Running", description:"Pode mover-se um hex adicional em combate; ganha +1 à sua pontuação de Movimento.", requisite:"", xp:4 },
+  { kn:0, name:"Sharpshooter I", description:"Ao atacar com qualquer arma de longo alcance, se mirar num inimigo parcialmente obstruído por outro combatente ou por uma estrutura, o inimigo não ganha bónus de defesa por cobertura parcial. Se um aliado fornecer cobertura parcial e errar o tiro, não precisa rolar para errar o aliado. Ainda não pode mirar num inimigo com cobertura completa.", requisite:"", xp:10 },
+  { kn:0, name:"Shield Bash I", description:"Pode fazer um ataque adicional durante o seu turno com o escudo a AD-2 contra um inimigo adjacente. Causa 1d4 de dano. Este ataque ocorre ao mesmo tempo que o primeiro ataque apesar da menor chance de acertar. O seu ataque principal não é afetado e não sofre penalidade para acertar. Também pode fazer um ataque de Shield Bash contra um inimigo adjacente que o ataque se estiver a Defender e rolar qualquer face do dado que não seja vazia.", requisite:"", xp:3 },
+  { kn:0, name:"Special Weapon Proficiency: Bardiche", description:"Pode empunhar uma bardiche se cumprir o requisito de MT. Uma bardiche é uma arma de haste com uma grande lâmina de machado de aço, dando-lhe as propriedades de Alcance de uma arma de haste e a propriedade de +1 de dano de um machado. Com um Crit, o herói escolhe o efeito crítico de uma arma de haste OU de um machado. Bardiches não beneficiam das Disciplinas de Mestria em Machados ou Armas de Haste.", requisite:"", xp:7 },
+  { kn:0, name:"Special Weapon Proficiency: Cestus", description:"Pode empunhar um cestus se cumprir o requisito de MT. Um cestus é uma luva de combate equipada com placas de ferro e espinhos, projetada para socos e combate corpo a corpo. Cesti podem ser usados com as Disciplinas de Artes Marciais. Como ataques desarmados, cesti não têm efeito especial de crítico.", requisite:"", xp:5 },
+  { kn:0, name:"Special Weapon Proficiency: Katar", description:"Pode empunhar um katar se cumprir o requisito de MT. Um katar é uma espada curta de soco que requer treino especial para usar. Como é uma arma da classe espada, ganha a propriedade AD+1 da classe espada e tem o efeito crítico da classe espada. Como uma adaga, um katar também pode ser usado num Grapple, mas não ganha bónus de dano num Grapple.", requisite:"", xp:5 },
+  { kn:0, name:"Special Weapon Proficiency: Khopesh", description:"Pode empunhar uma khopesh se cumprir o requisito de MT. Uma khopesh é uma espada em forma de foice que requer treino especial. Tem a propriedade AD+1 da classe espada. Em vez de um ataque normal, o portador pode escolher prender a arma ou escudo de um inimigo com a curva interior da lâmina. Para tal, deve declarar que planeia atacar a arma ou escudo do inimigo antes de atacar a AD-1. Se bem-sucedido, não causa dano mas o inimigo não pode usar a sua arma ou escudo durante um turno completo até a sua fase de ação no próximo turno. Khopesh usa o efeito crítico da classe espada.", requisite:"", xp:5 },
+  { kn:0, name:"Special Weapon Proficiency: Pike", description:"Pode usar uma pike se cumprir o requisito de MT. Uma pike é uma lança muito longa que requer treino especial. Pode atacar inimigos a dois ou três hexes de distância. Ao contrário de outras armas de haste, o comprimento da pike impede-o de atacar inimigos adjacentes; só pode atacar inimigos a pelo menos dois hexes. Como outras armas de haste, pikes provocam Embattle nos oponentes quando entram no alcance, então os inimigos devem parar a três hexes. Ações de Movimento subsequentes são limitadas a um Pivot de um hex, então um inimigo Embattled a três hexes só pode fazer Pivot para ficar a dois hexes durante a Fase de Movimento. Pikes ganham o efeito crítico da classe arma de haste.", requisite:"", xp:5 },
+  { kn:0, name:"Special Weapon Proficiency: Poleaxe", description:"Pode usar uma poleaxe se cumprir o requisito de MT. Uma poleaxe tem a propriedade de Alcance de uma arma de haste e o +1 de dano de um machado. Com um acerto crítico, o herói escolhe o efeito crítico de uma arma de haste ou o efeito crítico de um machado.", requisite:"", xp:5 },
+  { kn:0, name:"Special Weapon Proficiency: Polehammer", description:"Pode usar um polehammer se cumprir o requisito de MT. Um polehammer tem tanto a propriedade de Alcance das armas de haste como a propriedade de penetração de armadura dos martelos (-2 na armadura do inimigo). Com um acerto crítico, o herói escolhe o efeito crítico de uma arma de haste ou o efeito crítico de um martelo.", requisite:"", xp:5 },
+  { kn:0, name:"Spell Strike", description:"Permite conjurar um Feitiço de arremesso ao realizar um ataque corpo a corpo, devendo declarar o uso antes de atacar. Se o ataque físico acertar, realiza um teste de AD para conjurar o feitiço contra o mesmo alvo. Se o ataque físico falhar, o feitiço falha automaticamente. Se o alvo ganhar Dados de Defesa contra o seu ataque, estes apenas servem para prevenir o ataque corpo a corpo; se este for bem-sucedido, o inimigo não rola Dados de Defesa para bloquear o feitiço do Spellstrike.", requisite:"", xp:15 },
+  { kn:0, name:"Spell Throwing", description:"Ganha AD+2 nos seus lançamentos ao conjurar um Feitiço de arremesso.", requisite:"", xp:7 },
+  { kn:0, name:"Tactics", description:"Adiciona AD+1 à jogada de Iniciativa do seu grupo, independentemente de quem lança os dados. Se vários heróis tiverem esta disciplina, todos os bónus são somados à Iniciativa do grupo.", requisite:"", xp:6 },
+  { kn:0, name:"Thrown Weapon Expertise", description:"Ganha AD+2 ao arremessar uma arma. Heróis com esta disciplina podem arremessar e depois preparar outra arma de arremesso durante a sua Fase de Ação.", requisite:"", xp:10 },
+  { kn:0, name:"Trigger Finger", description:"Ao empunhar uma besta, pode atacar no início da ordem de ataque, conforme descrito na disciplina Haste. No entanto, o AD do seu ataque permanece inalterado.", requisite:"", xp:5 },
+  { kn:0, name:"Weapon Mastery", description:"Selecione um tipo de arma para se especializar: machados, martelos, armas de haste ou espadas. Ao atacar com o tipo escolhido, ganha um bónus de AD+1 ou +1 de dano, decidido antes do ataque. Esta disciplina pode ser obtida várias vezes; os bónus podem ser distribuídos livremente (ex: três mestrias em espadas podem dar AD+2 e +1 de dano).", requisite:"", xp:5 },
+  { kn:1, name:"Animal Handler I", description:"Como Ação, pode tentar domesticar um animal com um teste de KN desde que o animal esteja a até seis hexes de si, tenha KN0 e não seja maior que um hex. Pode tentar novamente em turnos seguintes se falhar. Uma vez domesticado, o animal permanece domesticado e não atacará você ou os seus aliados. O animal domesticado acompanhará o seu grupo indefinidamente, se desejado, como companheiro. Isto não lhe dá a capacidade de controlar o animal (veja Animal Handler II). No entanto, quando o grupo tem direito a fazer testes de Perceção para notar um inimigo ou perigo, pode rolar um teste de Perceção pelo animal, e se for bem-sucedido, ele alertá-lo-á. Esta disciplina pode ser usada com animais invocados também.", requisite:"", xp:5 },
+  { kn:1, name:"Arbalist II", description:"Pré-requisito: Arbalist I. Ganha AD+1 adicional (para um total de AD+2 com ambas as Disciplinas Arbalist) ao atacar com uma besta.", requisite:"Arbalist I", xp:5 },
+  { kn:1, name:"Archery", description:"Ganha AD+2 ao atacar com um arco. Este bónus afeta tanto a sua ordem de ataque como a sua chance de acertar o inimigo. Não se aplica a outras armas de longo alcance.", requisite:"", xp:15 },
+  { kn:1, name:"Armor Proficiency II", description:"Pré-requisito: Armor Proficiency I. A penalidade de AD por usar armadura é um ponto menor. Por exemplo, armadura gambeson é apenas AD-1 em vez de AD-2.", requisite:"Armor Proficiency I", xp:6 },
+  { kn:1, name:"Cast on the Run", description:"Pode mover o seu Movimento completo durante a Fase de Movimento e ainda conjurar um Feitiço durante a Fase de Ação.", requisite:"", xp:5 },
+  { kn:1, name:"Deft Strikes", description:"Ao atacar com adaga, cestus, katar, faca ou ataque desarmado, pode fazer dois ataques em vez de um. Cada um destes ataques tem AD-1 ao determinar tanto a ordem do seu ataque como ao fazer a rolagem de ataque. Deft Strikes pode ser usado durante Grapple.", requisite:"", xp:10 },
+  { kn:1, name:"Detect Secrets, Traps, & Pick Locks I", description:"Ganha AD+3 em Testes de Perceção para detetar portas secretas e armadilhas, e em Testes de Scoundrel para remover armadilhas e abrir fechaduras.", requisite:"", xp:3 },
+  { kn:1, name:"Elemental Bending", description:"Aprendeu a canalizar os elementos naturais do mundo e dobrá-los à sua vontade. Todos os feitiços Arcanos que conjurar podem ser imbuídos com um elemento e ganham o efeito correspondente: Ar: Pode atacar primeiro na ordem de ataque com o seu feitiço Arcano, conforme descrito na Disciplina Haste. O seu AD não muda para a rolagem de ataque. Fogo: Adiciona +1 de dano a qualquer Ataque de Feitiço Arcano bem-sucedido. Gelo: Durante um turno, se causar dano ao alvo com um feitiço Arcano, o alvo sofre AD-1 e move-se um hex a menos durante um turno.", requisite:"", xp:4 },
+  { kn:1, name:"Flanking Combat I", description:"Se houver um aliado no lado oposto de um inimigo, o seu primeiro ataque causa 1d6 de dano extra a esse inimigo com um acerto bem-sucedido.", requisite:"", xp:5 },
+  { kn:1, name:"Grappler II", description:"Pré-requisito: Grappler I. Ganha +1 adicional na sua pontuação de Grapple para um total de +2 das suas Disciplinas Grappler.", requisite:"Grappler I", xp:4 },
+  { kn:1, name:"Grit I", description:"Pré-requisito: MT3. O seu treino tornou-o resistente. Ganha um bónus permanente de +1 de armadura, independentemente de estar ou não a usar armadura.", requisite:"MT3", xp:8 },
+  { kn:1, name:"Haste", description:"Pode realizar a sua Ação primeiro durante a Fase de Ação, antes de todos os outros combatentes. A sua probabilidade de acertar não é afetada, então ainda rola o seu AD normal para determinar se acerta. Se um inimigo tiver uma habilidade que indique que também age primeiro, esse inimigo e quaisquer heróis com Haste devem rolar Testes de Iniciativa individuais para determinar quem age primeiro. Isto é representado no Loremaster definindo a ordem de ação para 5 no ecrã do grupo para o herói com Haste.", requisite:"", xp:10 },
+  { kn:1, name:"Healer I", description:"Após o combate, como parte de um Descanso, pode curar a si mesmo e a cada um dos seus aliados 1HP de dano infligido durante o combate. Isto não acumula com o seu próprio uso ou de outro herói de Healer, nem cura Exhaustion. Não pode usar isto para curar dano de um combate anterior.", requisite:"", xp:7 },
+  { kn:1, name:"Martial Arts I", description:"Adiciona +1 ao dano ao atacar com um ataque desarmado ou com um cestus. Adiciona +1 ao dano causado com um ataque desarmado ou cestus durante Grapple.", requisite:"", xp:5 },
+  { kn:1, name:"Meditate I", description:"Após o combate, como parte de um Descanso, pode recuperar um ponto adicional de Exhaustion para um total de 2E (Descansar sem esta Disciplina recupera 1E).", requisite:"", xp:5 },
+  { kn:1, name:"Quick Draw I", description:"Se tiver uma mão livre, pode sacar uma arma em vez de se mover. Se não tiver uma mão livre, deve primeiro largar um item. Pode atacar com a arma durante a Fase de Ação.", requisite:"", xp:6 },
+  { kn:1, name:"Parry", description:"Ao empunhar uma arma do tipo espada, ganha +1 de bónus de armadura contra ataques corpo a corpo. Se empunhar duas espadas, o bónus não aumenta e ainda ganha apenas +1 de bónus de armadura.", requisite:"", xp:5 },
+  { kn:1, name:"Shield Bash II", description:"Pré-requisito: Shield Bash I. Em vez de fazer um segundo ataque com o escudo, pode escolher fazer um teste de MT contra um inimigo Embattled consigo. Subtraia o MT do inimigo do seu MT para determinar o AD do teste de MT. Se o teste de MT for bem-sucedido, empurra o inimigo para trás um hex para um dos três hexes imediatamente atrás dele, escolhido pelo herói. Se o hex de recuo não estiver vazio ou resultar em queda de uma saliência ou num perigo, o combatente em recuo pode fazer um teste de Base AD (ou teste de Atletismo para heróis). Se bem-sucedido e um dos três hexes traseiros for adjacente, o combatente pode recuar para um hex vazio. Se bem-sucedido mas não houver hex vazio disponível, o combatente cai prone no hex atual. Se o alvo falhar, é empurrado para o perigo. Quem cair de uma saliência para outra camada do mapa de batalha sofre 1d6 de dano e fica prone. Quem cair num abismo ou vazio é considerado morto. Após empurrar com sucesso um inimigo para trás um hex, deve imediatamente decidir: Avançar para o hex que acabou de ser desocupado, OU Permanecer onde está - retirando-se do combatente. Também pode fazer um empurrão de shield bash contra um inimigo adjacente que o ataque se estiver a Defender e rolar qualquer face do dado que não seja vazia.", requisite:"Shield Bash I", xp:5 },
+  { kn:1, name:"Staff & Wand Affinity: Conjuration", description:"Se conjurar com sucesso um feitiço de Conjuração, pode imediatamente fazer um ataque com uma arma.", requisite:"", xp:10 },
+  { kn:1, name:"Staff & Wand Affinity: Curse I", description:"Pode realizar a sua Ação primeiro antes de todos os outros combatentes durante a Fase de Ação quando estiver a tentar conjurar um feitiço de Maldição. A sua probabilidade de sucesso não é afetada, então ainda rola o seu AD normal para determinar se o Feitiço é bem-sucedido. Se um inimigo tiver uma habilidade que indique que também age primeiro, a equipa que ganhou a Iniciativa age primeiro.", requisite:"", xp:8 },
+  { kn:1, name:"Staff & Wand Affinity: Enchantment I", description:"Pré-requisito: Dois Feitiços de Encantamento aprendidos. Em vez de se mover durante a Fase de Movimento, pode conjurar um feitiço de Encantamento. Se o fizer, não pode conjurar um Feitiço durante a Fase de Ação, independentemente de a conjuração ter sido bem-sucedida ou não. No entanto, pode realizar qualquer outra Ação.", requisite:"Two learned Enchantment Spells", xp:10 },
+  { kn:1, name:"Staff & Wand Affinity: Furtherance I", description:"Paga o custo contínuo de Exhaustion para Feitiços de Furtherance em cada turno ímpar, começando no turno três. O custo de conjuração é o mesmo. Por exemplo, se conjurar Ricochet Attack, pagaria o custo de conjuração no turno um, normalmente. No turno dois, o custo de manutenção seria gratuito. No turno três e em cada turno ímpar seguinte, pagaria o custo de manutenção de 1E normalmente.", requisite:"", xp:10 },
+  { kn:1, name:"Staff & Wand Affinity: Summon", description:"Criaturas que invocar podem atacar (mas não mover) no final da Fase de Ação durante o turno em que são invocadas.", requisite:"", xp:10 },
+  { kn:1, name:"Stealth Attack I", description:"Ao atacar com uma arma de uma mão contra o hex lateral, hex traseiro de um alvo, ou se o alvo estiver prone, adiciona 2d4 ao seu dano.", requisite:"", xp:8 },
+  { kn:1, name:"Taunt I", description:"Em vez de se mover durante a Fase de Movimento, pode Provocar um inimigo que esteja Embattled consigo. Para tal, faça um teste oposto de KN subtraindo o KN do inimigo do seu KN para determinar o AD do teste. Se for bem-sucedido, o inimigo deve atacá-lo durante a fase de ataque se puder. O inimigo não pode atacar outros, Defender, Retirar-se ou realizar qualquer outra Ação. Esta Disciplina pode sobrepor-se às direções do Loremaster. Criaturas sob controlo de outro, como invocações, imagens ou pessoas controladas, são imunes a Taunt.", requisite:"", xp:4 },
+  { kn:1, name:"Tumble I", description:"Durante a Fase de Movimento, se tiver Movimento adicional restante, pode tentar mover-se um hex extra quando ficar Embattled com um inimigo fazendo um teste de Atletismo (AD+0). Em vez de cessar o movimento quando fica Embattled, pode tentar Tumble. Se o teste for bem-sucedido, pode fazer Pivot de um hex adicional. Deve permanecer adjacente ao inimigo. Se estiver Embattled por mais de um inimigo, deve ter sucesso num teste de Atletismo para cada um. Por exemplo, se Embattled por dois inimigos, deve fazer dois testes. Se falhar qualquer teste de Atletismo, os inimigos Embattled ganham um ataque corpo a corpo gratuito contra si ou cai prone, à sua escolha. Com falha, não se move o hex adicional.", requisite:"", xp:5 },
+  { kn:1, name:"Unarmed Defense I", description:"Ao empunhar um cestus ou usar ataques desarmados, ganha um ponto de armadura contra ataques corpo a corpo desde que ataque apenas uma vez num turno. Isto também se aplica durante Grapple. O ponto extra de armadura não protege contra ataques à distância.", requisite:"", xp:4 },
+  { kn:2, name:"Acrobatics II", description:"Pré-requisito: Acrobatics I. Ganha outro +1 para um total de AD+2 em testes de Atletismo. Adiciona os seus ranks base de Atletismo, +1 a mais, à sua pontuação de Grapple ao tentar escapar de um Grapple. Durante a Fase de Movimento, pode levantar-se de prone gastando um hex de Movimento.", requisite:"Acrobatics I", xp:1 },
+  { kn:2, name:"Alchemy", description:"Durante a Recuperação, pode criar uma poção. A poção concede um bónus temporário de +2 a uma skill ou +1 a um Atributo com um teste Moderado de KN (AD+0). A poção concede este bónus temporário por um dia completo. Pode tentar criar uma poção independentemente da e em adição à sua atividade de Recuperação.", requisite:"", xp:5 },
+  { kn:2, name:"Berserk", description:"Pré-requisito: Grit I. Em vez de se mover durante a Fase de Movimento, pode iniciar Berserk. Fazer isso custa 2E, depois 2E adicionais por cada turno que Berserk for mantido. Enquanto em Berserk, ganha +1 Movimento, Fortune em todas as rolagens de ataque com arma corpo a corpo ou arremessável, e os seus ataques causam dano bónus igual a metade do seu MT arredondado para baixo. Deve gastar uma Fase de Movimento para sair de Berserk. Se ficar inconsciente, Berserk termina automaticamente.", requisite:"Grit I", xp:10 },
+  { kn:2, name:"Defensive Fighting", description:"Os seus inimigos têm AD-1 para acertar ao atacá-lo com um ataque corpo a corpo e AD-2 se defender. Isto não afeta a ordem de ataque dos seus inimigos.", requisite:"", xp:5 },
+  { kn:2, name:"Dodge", description:"Pode rolar um Dado de Defesa sempre que um oponente o atacar com um ataque à distância ou um Feitiço à distância. Se estiver a Defender, rola dois Dados de Defesa.", requisite:"", xp:5 },
+  { kn:2, name:"Elemental Bending II", description:"Pré-requisito: Elemental Bending I. O dano causado por energia elemental que conjurar é aumentado em um ponto adicional. Se evocar fogo, o bónus totalizará +2 de dano.", requisite:"Elemental Bending I", xp:10 },
+  { kn:2, name:"Grappler III", description:"Pré-requisito: Grappler II. Adiciona +1 adicional à sua pontuação de Grapple para um total de +3 das Disciplinas Grappler.", requisite:"Grappler II", xp:4 },
+  { kn:2, name:"Herbalism", description:"Durante a Recuperação, cria uma poção de cura padrão com um teste Moderado de KN (AD+0). Poções curam 1d6 de dano e a cura é rolada com Fortune; o consumidor rola 2d6 e usa o melhor resultado. Pode tentar criar uma poção independentemente da e em adição à sua atividade de Recuperação.", requisite:"", xp:5 },
+  { kn:2, name:"Marksmanship I", description:"Ao atacar com arco ou besta, pode escolher mirar um tiro que evite a armadura do oponente. Deve declarar antes de atacar se está a usar Marksmanship. Se sim, só pode atacar uma vez no turno, mesmo com Double Shot, e ataca automaticamente por último na ordem de ataque após todos os outros combatentes. Ao atacar, rola o seu AD normal. Se o teste de AD for um Hit Symbol, a armadura do alvo não fornece proteção contra o ataque. Se o teste for bem-sucedido mas um número for rolado em vez de Hit Symbol, o ataque acerta mas não ignora a proteção de armadura. Marksmanship é eficaz contra armadura natural, como escamas de dragão, além de armadura fabricada.", requisite:"", xp:8 },
+  { kn:2, name:"Martial Arts II", description:"Pré-requisito: DX2 base (não ajustado) e Martial Arts I. Ganha +1 adicional para um total de +2 de dano ao atacar com cestus ou ataques desarmados. Em vez de atacar, pode tentar mover um inimigo adjacente fazendo um teste de MT conforme descrito na Disciplina Shield Bash II.", requisite:"Martial Arts I, base DX2", xp:5 },
+  { kn:2, name:"Meditate II", description:"Pré-requisito: Meditate I. Recupera um ponto adicional de Exhaustion durante um Descanso, para igualar um total de três pontos (um pelo Descanso, um pelo Meditate I e um pelo Meditate II).", requisite:"Meditate I", xp:5 },
+  { kn:2, name:"Polearm Trip", description:"Ao atacar com uma arma de haste e acertar na rolagem de ataque, antes do dano ser rolado pode pedir para subtrair dois pontos do seu dano para obter uma tentativa gratuita de derrubar. Inimigos derrubados devem fazer um teste oposto de AD a AD+2 para evitar ser derrubados. Criaturas com quatro patas também podem rolar um Dado de Defesa para evitar a derrubada. Se a tentativa for bem-sucedida, o inimigo cai imediatamente prone. O dano do seu ataque aplica-se independentemente do sucesso da tentativa de derrubada. Esta Disciplina não pode ser usada em conjunto com Polearm Charge ou Quick Jab.", requisite:"", xp:10 },
+  { kn:2, name:"Polearm Charge", description:"Ao atacar com uma arma de haste, no turno em que se move para um hex adjacente a um inimigo - ou se escolher não parar um inimigo a 2 hexes com Alcance e permitir que o inimigo se mova adjacente a si - o seu ataque de arma de haste contra o inimigo causa dano duplo. Se acertar, role o dano e multiplique por dois. Não pode usar Quick Jab ou Polearm Trip no mesmo turno que Polearm Charge. Não pode usar Polearm Charge como Pivot; o seu ataque não beneficia de Polearm Charge se iniciar a Fase de Movimento Embattled.", requisite:"", xp:15 },
+  { kn:2, name:"Sharpshooter II", description:"Pré-requisito: Sharpshooter I. Além dos benefícios de Sharpshooter I, ao atacar com qualquer arma de longo alcance, pode disparar através do hex de um aliado num alvo mesmo que o aliado forneça cobertura completa. Se o alvo tiver cobertura completa de uma fonte que não os aliados, o alvo ganha um Dado de Defesa contra o ataque. Se errar, deve fazer uma rolagem de ataque bem-sucedida para errar o aliado. Se falhar na rolagem para errar o aliado, causa dano ao aliado.", requisite:"Sharpshooter I", xp:5 },
+  { kn:2, name:"Shield Bash III", description:"Pré-requisito: Shield Bash II. Em vez de atacar com o escudo ou empurrar com o escudo, pode fazer ambos. Isto significa que pode fazer um empurrão oposto de MT além de um ataque. O AD do inimigo para resistir ao empurrão é calculado subtraindo o MT dele do seu MT, conforme Shield Bash II.", requisite:"Shield Bash II", xp:1 },
+  { kn:2, name:"Shot on the Run", description:"Pode usar o seu Movimento completo durante a Fase de Movimento e ainda atacar com uma arma de longo alcance durante a Fase de Ação.", requisite:"", xp:5 },
+  { kn:2, name:"Staff & Wand Affinity: Arcane I", description:"Feitiços Arcanos custam um ponto a menos de Exhaustion para conjurar. Por exemplo, um Feitiço Arcano que normalmente custa 1E para conjurar pode ser conjurado por 0E. O custo de Exhaustion não pode ser negativo. Isto aplica-se apenas ao custo inicial de conjuração e não se aplica ao custo de manutenção para feitiços contínuos.", requisite:"", xp:10 },
+  { kn:2, name:"Staff & Wand Affinity: Enchantment II", description:"Pré-requisito: Staff & Wand Affinity: Enchantment I e Cast on the Run. Além de se mover, pode também conjurar um Feitiço de Encantamento durante a Fase de Movimento. Se o fizer, não pode conjurar um Feitiço durante a Fase de Ação, mas pode realizar qualquer outra Ação.", requisite:"S&W: Enchantment I and Cast on the Run", xp:5 },
+  { kn:2, name:"Staff & Wand Affinity: Furtherance II", description:"Pré-requisito: Furtherance I. Ao conjurar um Feitiço de Furtherance num aliado, ganha uma cópia do Feitiço em si mesmo sem custo inicial. No entanto, nos turnos seguintes quando incorrer no custo de manutenção, incorre no E para ambos os Feitiços. Pode escolher cancelar um dos Feitiços sem cancelar o outro.", requisite:"Furtherance I", xp:10 },
+  { kn:2, name:"Sunder", description:"Ao atacar com um martelo ou machado, se a rolagem de ataque for um Hit Symbol, a armadura do inimigo é permanentemente reduzida em dois pontos. O inimigo também sofre dano do seu ataque, determinado após a redução da armadura. Martelos sempre ignoram dois pontos de armadura além deste efeito. Se a rolagem de ataque acertar mas não for um Hit Symbol, causa dano normalmente sem reduzir permanentemente a proteção de armadura.", requisite:"", xp:5 },
+  { kn:2, name:"Swordsmanship", description:"Pré-requisito: Atacar com espada com Base AD de 3 ou superior. Todos os marcadores de acerto no Dado de Ação são tratados como ícones de acerto crítico. Com esta Disciplina, há cinco ícones de acerto crítico num Dado de Ação ao atacar com espada. Swordsmanship não pode ser usado durante Grapple.", requisite:"Base AD3+ with sword", xp:15 },
+  { kn:2, name:"Taunt II", description:"Pré-requisito: Taunt I. Como Taunt I, exceto que pode provocar tantos inimigos Embattled consigo quantos desejar. Também pode Provocar inimigos que não estejam Embattled e estejam a até 5 hexes. Se um inimigo provocado tiver ataque à distância, atacá-lo-á com o ataque à distância durante a Fase de Ação. Se um inimigo provocado tiver ataque corpo a corpo, move-se até ao seu Movimento completo para ficar Embattled e atacá-lo. O uso desta Disciplina exigirá que sobrepor as direções do Loremaster e determine as opções de ataque do inimigo.", requisite:"Taunt I", xp:5 },
+  { kn:2, name:"Tumble II", description:"Pré-requisito: Tumble I. Como Tumble I, exceto que, se fizer Tumble com sucesso, pode repetidamente fazer Tumble de 1 hex indefinidamente enquanto tiver Movimento restante fazendo um teste de Tumble para cada hex até falhar, e desde que os seus Movimentos sejam Pivots e permaneça adjacente aos inimigos.", requisite:"Tumble I", xp:5 },
+  { kn:2, name:"Unarmed Defense II", description:"Pré-requisito: Unarmed Defense I. Como Unarmed Defense I, mas o benefício total de armadura é de dois pontos.", requisite:"Unarmed Defense I", xp:5 },
+  { kn:3, name:"Animal Handler II", description:"Pré-requisito: Animal Handler I. Pode gastar um turno inteiro (Fases de Movimento e Ação) para convencer um animal domesticado a realizar uma ação. Durante a sua Fase de Ação, faça um teste de KN. Se bem-sucedido, o animal seguirá uma instrução simples como 'atacar um inimigo', movendo-se e atacando conforme necessário para executar a ação. O animal executará imediatamente a ação, desde que ainda não tenha agido neste turno. Continuará a mesma ação nos turnos seguintes até ser redirecionado. Se o teste falhar, o animal domesticado permanece inerte. Note que ainda é necessário um turno anterior para domesticar um animal. Heróis podem ter apenas 1 animal domesticado de cada vez. (Veja o Rulebook do Pericle para ações de animais.)", requisite:"Animal Handler I", xp:5 },
+  { kn:3, name:"Bardic Arts", description:"Durante a Recuperação, pode ganhar um ponto de Inspiração com um teste Moderado de Knowledge (AD+0). Pontos de Inspiração são exatamente como Karma, exceto que nunca pode ter mais de um ponto de Inspiração. Pode tentar ganhar um ponto de Inspiração independentemente da e em adição à sua atividade de Recuperação.", requisite:"", xp:8 },
+  { kn:3, name:"Detect Secrets, Traps, & Pick Locks II", description:"Pré-requisito: Detect Secrets, Traps, & Pick Locks I. Ganha Fortune em Testes de Perceção para detetar portas secretas e armadilhas e em Testes de Scoundrel para remover armadilhas e abrir fechaduras.", requisite:"Detect Secrets, Traps, & Pick Locks I", xp:3 },
+  { kn:3, name:"Double Shot I", description:"Pode disparar um arco recurvo duas vezes por turno.", requisite:"", xp:10 },
+  { kn:3, name:"Dual Weapons", description:"Pré-requisito: Base AD3+. Pode empunhar uma arma de uma mão em cada mão. Durante a Fase de Ação, pode: Atacar com ambas as armas. O primeiro ataque é normal e o segundo ataque é a AD-3 mas é feito ao mesmo tempo que o primeiro ataque. Atacar com a primeira arma e aparar com a segunda arma. Fazer isto concede +2 de armadura contra ataques corpo a corpo.", requisite:"base AD3+", xp:15 },
+  { kn:3, name:"Flanking Combat II", description:"Pré-requisito: Flanking Combat I. Como Flanking Combat I, exceto que pode aplicar o dano bónus a todos os seus ataques num turno.", requisite:"Flanking Combat I", xp:4 },
+  { kn:3, name:"Grit II", description:"Pré-requisito: MT4 e Grit I. Ganha +1 adicional de bónus de armadura para um total de +2 das Disciplinas Grit.", requisite:"MT4 and Grit I", xp:10 },
+  { kn:3, name:"Healer II", description:"Pré-requisito: Healer I. Como Healer I, exceto que pode curar um total de 2HP de ferimentos para cada aliado após uma batalha.", requisite:"Healer I", xp:7 },
+  { kn:3, name:"Marksmanship II", description:"Pré-requisito: Marksmanship I. Ao fazer um tiro mirado conforme Marksmanship I, os seus ataques mirados ocorrem na ordem de ataque normal em vez do final da fase de ações. Além disso, pode adicionar +2 de dano à rolagem de ataque se fizer apenas um ataque. Este dano aplica-se se o tiro acertar, mas o tiro mirado não ignora armadura.", requisite:"Marksmanship I", xp:5 },
+  { kn:3, name:"Martial Arts III", description:"Pré-requisito: Martial Arts II. Como Martial Arts II, exceto que causa +3 de dano em vez de +2. Se a rolagem de ataque for bem-sucedida, pode também tentar uma ação de Derrubada conforme a Disciplina Polearm Trip além de causar dano.", requisite:"Martial Arts II", xp:10 },
+  { kn:3, name:"Quick Draw II", description:"Pré-requisito: Quick Draw I. Pode sacar uma arma ou escudo e mover-se no mesmo turno durante a Fase de Movimento com um teste Moderado de Atletismo (AD+0). Mova a sua miniatura, depois faça o teste de Atletismo. Se falhar, o movimento não muda mas não saca a arma. Se sacar com sucesso e não tiver mão livre, deve largar um item da mão no hex onde o herói está quando o teste é feito. Alternativamente, em vez de sacar, pode guardar uma arma ou escudo enquanto se move com um teste de Atletismo bem-sucedido. Guardar durante o Movimento permite sacar uma arma diferente como Ação durante a Fase de Ação.", requisite:"Quick Draw I", xp:2 },
+  { kn:3, name:"Runestone Mastery", description:"Pode ganhar os bónus de duas runestones embutidas num item em vez de apenas uma. Sem dominar esta Disciplina, heróis só podem ganhar o benefício de uma runestone em cada item.", requisite:"", xp:5 },
+  { kn:3, name:"Runic Forgecraft I", description:"Durante a Recuperação e entre corridas ao Labirinto, pode tentar melhorar um item mágico com a propriedade Lesser para a propriedade Standard. No final da Recuperação, tente um Teste Difícil de KN (AD-2). Com sucesso, o item é melhorado de Lesser para Standard. Com falha, a tentativa foi malsucedida. Pode tentar novamente em Recuperações subsequentes. Mais comummente usado com itens encontrados no Tome of the Magical.", requisite:"", xp:10 },
+  { kn:3, name:"Spell Tenacity", description:"Um herói com Spell Tenacity pode exigir que o alvo subtraia dois pontos da sua pontuação de AD oposto para Feitiços que requerem teste oposto.", requisite:"", xp:5 },
+  { kn:3, name:"Staff & Wand Affinity: Curse II", description:"Pré-requisito: Staff & Wand Affinity: Curse I e dois Feitiços de Maldição aprendidos. Se houver um Feitiço de Maldição em efeito que conjurou e se se moveu no máximo um hex, pode fazer um teste Moderado de KN (AD+0) durante a Fase de Movimento para estender a duração do Feitiço em um turno ou transferir o Feitiço de Maldição para outro inimigo. No entanto, se este inimigo estiver a mais de três hexes, aplique os incrementos de alcance ao teste de AD conforme os alcances de Feitiço de Arremesso (-1 para 4-6 hexes, -2 para 7-9 hexes, etc.).", requisite:"S&W: Curse I and two Curse Spells", xp:5 },
+  { kn:3, name:"Stalker", description:"No início do combate, se o grupo ganhar a Iniciativa, o herói com Stalker pode tentar um teste de KN bem-sucedido. Se bem-sucedido, o herói ganha um turno Surpresa completo (Movimento e Ação) antes do combate começar, antes de qualquer outro herói ou inimigo agir. Após este turno Surpresa, a Fase de Movimento do combate começará. O herói Stalker ainda recebe as suas Fases regulares de Movimento e Ação durante o primeiro turno completo de combate.", requisite:"", xp:10 },
+  { kn:3, name:"Stealth Attack II", description:"Pré-requisito: Stealth Attack I. Como Stealth Attack I, mas aumenta o dano para +3d4 em vez de 2d4 ao atacar do hex lateral ou traseiro ou alvos prone. Não pode usar esta Disciplina se estiver em Grapple.", requisite:"Stealth Attack I", xp:5 },
+  { kn:3, name:"Whirlwind Attack", description:"Pode fazer um único ataque corpo a corpo contra qualquer número de inimigos adjacentes aos seus hexes frontais, cada um a AD-1. Role cada ataque e dano separadamente.", requisite:"", xp:5 },
+  { kn:4, name:"Animal Handler III+", description:"Pré-requisito: Animal Handler II. Como Animal Handler II, exceto que em vez de gastar um turno completo para controlar um animal domesticado, pode gastar apenas a Fase de Movimento para tentar o controlo. O controlo ainda requer um teste de KN. Se bem-sucedido, o animal pode mover-se conforme a sua direção no mesmo turno se ainda não se tiver movido.", requisite:"Animal Handler II", xp:5 },
+  { kn:4, name:"Double Shot II", description:"Pré-requisito: Double Shot I. Pode disparar um War Bow duas vezes por turno.", requisite:"Double Shot I", xp:5 },
+  { kn:4, name:"Grappling Expertise", description:"Pré-requisito: Grappler II (Grappler III não é necessário). Tem uma segunda chance em testes opostos de Grapple falhados. Se estiver a rolar o teste de Grapple, tem Fortune, e se o inimigo estiver a rolar o teste de Grapple, tem Misfortune.", requisite:"Grappler II", xp:7 },
+  { kn:4, name:"Grit III", description:"Pré-requisito: MT5 e Grit II. Ganha +1 adicional de bónus de armadura.", requisite:"MT5 and Grit II", xp:10 },
+  { kn:4, name:"Quick Draw III", description:"Pré-requisito: Quick Draw II. Uma vez por turno, conforme Quick Draw II, pode sacar uma arma em combinação com um Movimento, mas agora sem fazer um teste de Atletismo.", requisite:"Quick Draw II", xp:1 },
+  { kn:4, name:"Runic Forgecraft II", description:"Pré-requisito: Runic Forgecraft I. Durante a Recuperação e entre corridas ao Labirinto, pode tentar melhorar um item mágico com a propriedade Standard para a propriedade Greater. No final da Recuperação, tente um Teste Difícil de KN (AD-2). Com sucesso, o item é melhorado de Standard para Greater. Com falha, a tentativa foi malsucedida. Pode tentar novamente em Recuperações subsequentes. Mais comummente usado com itens encontrados no Tome of the Magical.", requisite:"Runic Forgecraft I", xp:10 },
+  { kn:4, name:"Staff & Wand Affinity: Arcane II", description:"Pré-requisito: Arcane I. Um ponto adicional de Exhaustion pode ser gasto em feitiços Arcanos para dobrar o número de dados de dano rolados. Isto não dobra os efeitos Elementais. Por exemplo, um herói pode conjurar Arcane Fire Barrage que normalmente causaria 1d6+1 de dano a custo 0E por causa de Staff & Wand Affinity: Arcane, mas pode escolher gastar 1E adicional, neste caso 1E total, e causar 2d6+1 de dano.", requisite:"Arcane I", xp:15 },
+  { kn:4, name:"Staff & Wand Affinity: Enchantment III", description:"Pré-requisito: Staff & Wand Affinity: Enchantment II. Além de se mover, pode também conjurar um Feitiço de Encantamento durante a Fase de Movimento. Pode então realizar qualquer Ação durante a Fase de Ação, incluindo conjurar qualquer outro Feitiço.", requisite:"S&W: Enchantment II", xp:10 },
+  { kn:4, name:"Staff & Wand Affinity: Shapeshifter I", description:"Ao conjurar um feitiço de Metamorfose, itens mágicos que não sejam armas ou armaduras continuam disponíveis para uso. Sem esta Disciplina, nenhum dos seus itens está disponível quando se metamorfoseia.", requisite:"", xp:5 },
+  { kn:5, name:"Double Shot III", description:"Pré-requisito: Double Shot II. Pode disparar um Longbow duas vezes por turno.", requisite:"Double Shot II", xp:5 },
+  { kn:5, name:"Quick Draw IV", description:"Pré-requisito: Quick Draw III. Uma vez por turno, pode sacar uma arma e guardar uma arma em combinação com um Movimento sem fazer teste de Atletismo. Também pode guardar e sacar uma arma como Ação.", requisite:"Quick Draw III", xp:1 },
+  { kn:5, name:"Staff & Wand Affinity: Curse III", description:"Pré-requisito: Staff & Wand Affinity: Curse II e três Feitiços de Maldição aprendidos. Se conjurou com sucesso um Feitiço de Maldição no turno anterior, durante a Fase de Ação pode fazer um teste de Base AD para reconjurar o mesmo Feitiço no mesmo ou num alvo diferente, pagando o custo de Exhaustion. Pode então também realizar uma Ação.", requisite:"S&W: Curse II and three Curse Spells", xp:15 },
+  { kn:5, name:"Staff & Wand Affinity: Shapeshifter II", description:"Ao conjurar um Feitiço de Metamorfose e estar na forma transformada, pode conjurar Feitiços com requisito de KN até ao seu nível de KN menos três. Também pode usar Disciplinas que afetem Feitiços. Sem esta Disciplina, não pode conjurar feitiços enquanto transformado nem usar Disciplinas.", requisite:"", xp:5 },
+];
+const SPELLS = [
+  { kn:0, name:"Blur", school:"Furtherance", cat:"T", exhaustion:"1E + 1E/turn", description:"Blur torna o alvo mais difícil de ver, forçando o atacante a rolar AD0 com Misfortune, o que significa que deve rolar o ataque duas vezes e ter sucesso em ambas ao atacar um alvo com Blur. Blur não altera a ordem de ataque. O atacante ainda ataca na sua ordem normal baseada no seu AD habitual. Por exemplo, um atacante com AD2 ainda ataca antes de combatentes com AD1 e AD0, mas deve rolar o ataque a AD0 duas vezes para ter sucesso contra um alvo com Blur.", duration:"Concentration", xp:4 },
+  { kn:0, name:"Drop Item", school:"Curse", cat:"T", exhaustion:"1E (2E for MT10+)", description:"Faz o alvo largar um item das suas mãos, mais frequentemente uma arma. O conjurador decide qual item o alvo larga. Este Feitiço não tem efeito quando conjurado num inimigo com armas intrínsecas/naturais. O conjurador escolhe qual mão é afetada se ambas estiverem a segurar itens.", duration:"Instantaneous", xp:4 },
+  { kn:0, name:"Grease, Minor", school:"Conjuration", cat:"T", exhaustion:"1E", description:"Selecione um hex para ficar engordurado até ao final do combate. A gordura não é visível, mas os heróis sabem onde está. Quando uma criatura se move para o hex engordurado, deve rolar um teste de Base AD ou cair. Cada vez que a criatura entra num hex engordurado, um novo teste deve ser feito. Levantar-se de um hex engordurado também requer um teste, então uma criatura que se levanta de um hex engordurado para um hex engordurado adjacente teria de fazer 2 testes. Criaturas podem rastejar sem rolar um teste. Se grease for conjurado num hex já ocupado por uma criatura, essa criatura deve imediatamente rolar um teste de AD ou cair. Criaturas multi-hex ainda têm de fazer um teste de AD ou cair se mesmo um dos seus hexes estiver num hex engordurado. O Feitiço afeta imagens, que rolam a Base AD0. Heróis podem optar por rolar um teste de Atletismo em vez de teste de Base AD.", duration:"Combat", xp:3 },
+  { kn:0, name:"Image", school:"Conjuration", cat:"C", exhaustion:"1E", description:"Cria uma imagem de 1 hex de um rato gigante, lobo ou guerreiro espectral. A criação deve aparecer num hex vazio até três hexes do conjurador. Veja Magia no rulebook para mais informações sobre imagens.", duration:"", xp:3 },
+  { kn:0, name:"Luck of Esteus", school:"Enchantment", cat:"T", exhaustion:"1E", description:"O alvo ganha Fortune na próxima rolagem de AD. Se o alvo não fizer uma rolagem de AD dentro de um turno, o bónus de Fortune é perdido.", duration:"1 Turn", xp:5 },
+  { kn:0, name:"Magic Shield I", school:"Enchantment", cat:"T", exhaustion:"0E", description:"Cria uma força mágica de energia que bloqueia ataques nos hexes frontais do alvo, concedendo um ponto de proteção. O herói afetado não precisa empunhá-lo; flutua à frente do conjurador. O Feitiço dura 10 turnos mas é destruído se o herói for atingido por um ataque que cause dano duplo ou triplo. No entanto, neste caso anula o acerto crítico, resultando num acerto normal. Esta proteção de armadura não acumula com outros escudos, incluindo reconjuração de Magic Shield, mas pode ser usada com Magic Armor. Se Magic Shield for reconjurado, ainda haverá apenas 1 Feitiço ativo, mas a duração será reiniciada para 10 turnos.", duration:"10 Turns", xp:5 },
+  { kn:0, name:"Slow/Speed Movement", school:"Enchantment", cat:"T", exhaustion:"0E", description:"Reduz pela metade ou duplica o Movimento conforme selecionado pelo conjurador. Se um herói estiver Embattled com um herói que está Slowed, o herói pode fazer Pivot de 2 hexes em vez de apenas 1 hex - embora deva permanecer adjacente ao inimigo.", duration:"4 Turns", xp:2 },
+  { kn:0, name:"Summon Beast I", school:"Summoning", cat:"C", exhaustion:"1E + 1E/turn", description:"Invoca um animal pequeno não voador à sua escolha que está completamente sob o seu controlo, como um guaxinim, texugo ou rato gigante. A criatura invocada não pode agir no turno em que é invocada. Stats: HP 6, MT0, DX2/AD2, KN0, Grapple 0, Movement 4, mordida/garras 1d4.", duration:"Concentration", xp:5 },
+  { kn:0, name:"Terror", school:"Curse", cat:"T", exhaustion:"2E", description:"O alvo deve Defender na sua próxima Ação. Se o alvo ainda não tomou uma Ação neste turno, defenderá neste turno. Se o alvo já tomou uma Ação neste turno, a sua Ação no próximo turno será Defender. Este Feitiço não funciona em criaturas cujo HP a plena saúde é superior a 20. Criaturas com KN3 ou superior fazem um teste oposto de KN, e se o alvo tiver sucesso no teste oposto, não é afetado.", duration:"Next Action", xp:4 },
+  { kn:1, name:"Arcane Barrage", school:"Arcane", cat:"T", exhaustion:"1E", description:"Canaliza o seu poder interior para disparar um projétil de energia a grandes distâncias. O projétil usa incrementos de alcance como um ataque de arma de longo alcance em vez de Feitiços de arremesso. Arcane Barrage causa dano correspondente ao seu MT. Se o conjurador tiver a Disciplina Elemental Bending, pode ser imbuído com um elemento específico para conjurar Air Barrage, Fire Barrage ou Ice Barrage.", dmgTable:[["0","1d4"],["1","1d4"],["2","1d6"],["3","2d4"],["4","1d6+1d4"],["5","2d6"],["6","3d4"]], duration:"Instantaneous", xp:5 },
+  { kn:1, name:"Arcane Flux", school:"Arcane", cat:"C", exhaustion:"1E", description:"Canaliza energia dos planos elementais para criar uma poça de energia num hex que dura até ao final do combate. Se uma criatura estiver no hex, causa 1HP de dano. Se uma criatura entrar num hex com flux, também sofre 1HP de dano. Se uma criatura iniciar o seu turno num hex com flux e não sair, sofre 3HP de dano durante a Fase de Ação no turno do herói conjurador. Atacar estando num hex com flux é distrativo, resultando em AD-2 na rolagem de ataque. Armadura (mas não escudo) protege contra o dano até o dano acumulado exceder o bónus de armadura. Por exemplo, um herói com cota de malha (3) não sofre dano no turno em que entra no flux, mas a eficácia da cota é reduzida em um de três para dois pontos pelo flux. Assim, no segundo turno, quando exposto a 3HP de dano de flux, a cota só protege 2HP, resultando em 1HP de dano. Animais e bestas mágicas com KN0 não entrarão num hex de flux, mas mortos-vivos sim. Como todos os Feitiços Arcanos, um conjurador pode usar Elemental Bending para imbuir o hex com um elemento de fogo (que causará 2/4 HP de dano), ar (causa dano no início da ordem de ataque) ou gelo (reduz AD em 1 adicional, logo AD-3). Flux permanece nos hexes onde foi conjurado. Não fere o conjurador mas ferirá todos os outros combatentes, incluindo aliados.", duration:"Combat", xp:4 },
+  { kn:1, name:"Armor Penetration", school:"Curse", cat:"T", exhaustion:"1E", description:"Penetra três pontos da armadura e escudos do alvo, reduzindo assim a armadura do alvo em três. Isto inclui todas as formas de armadura, incluindo itens mágicos, armadura natural e armadura de Feitiços. Aplica-se a todos os ataques contra o alvo feitos por qualquer criatura.", duration:"3 Turns", xp:3 },
+  { kn:1, name:"Boon", school:"Enchantment", cat:"T", exhaustion:"xE", description:"O conjurador decide se o alvo ganha pontos temporários em MT, DX, KN ou uma Skill. Se MT for concedido, o alvo também ganha HP temporários. Aumentar KN não concede XP temporário. O conjurador incorre em E igual aos pontos temporários concedidos ao alvo.", duration:"5 Turns", xp:3 },
+  { kn:1, name:"Candlelight", school:"Enigmatic", cat:"T", exhaustion:"0E", description:"Cria um foco de luz que emana de um item carregado pelo alvo, iluminando o mapa de batalha e eliminando penalidades por escuridão. Candlelight dura até o conjurador decidir extingui-lo, ou até o conjurador reconjurar Candlelight num novo alvo. Este Feitiço pode ser usado fora de combate.", duration:"Concentration", xp:2 },
+  { kn:1, name:"Clumsiness", school:"Curse", cat:"T", exhaustion:"xE", description:"O alvo recebe -2 AD por cada 1E gasto nas suas rolagens de acerto, mas isto não ajusta a ordem de ataque. O alvo ainda ataca na ordem como se o seu DX não tivesse sido reduzido. Se o AD do alvo for reduzido abaixo de 0, então o alvo tem AD0 com Misfortune. O alvo só pode ganhar um nível de Misfortune, mesmo que o AD seja reduzido múltiplos pontos abaixo de 0.", duration:"3 Turns (1 Turn MT20+)", xp:4 },
+  { kn:1, name:"Elemental Protection", school:"Enchantment", cat:"T", exhaustion:"1E", description:"O alvo torna-se imune aos efeitos elementais de feitiços, dano elemental (por exemplo, fogo) e feitiços Arcanos pela duração do feitiço.", duration:"5 Turns", xp:2 },
+  { kn:1, name:"Gateway", school:"Conjuration", cat:"C", exhaustion:"2E", description:"Cria um portal entre duas localizações alvo. Criaturas podem passar pelos portais e agir como se os hexes fossem adjacentes. O primeiro portal deve estar dentro do alcance de Criação (3 hexes), mas o segundo portal pode estar em qualquer lugar na linha de visão do conjurador.* Ambos os hexes devem estar vazios de criaturas e obstáculos maiores. Criaturas podem mover-se para o hex do portal com movimento normal. Custa 1 movimento entrar num hex de portal a partir de um hex adjacente. De um portal, uma figura pode gastar mais 1 movimento para se mover para o segundo portal. Uma figura que entra num hex de portal não é obrigada a viajar para o segundo portal - é sua escolha passar pelo portal ou mover-se para um hex adjacente diferente. Qualquer combatente de 1 hex pode mover-se através de um portal se estiver desobstruído, heróis e inimigos. Criaturas com inteligência animal ou sem inteligência, como mortos-vivos, não se moverão através do portal. Estando num portal, os hexes imediatamente ao redor são adjacentes. O hex do portal correspondente também é adjacente. Uma figura num portal pode atacar hexes adjacentes conforme as regras normais, e pode fazer um ataque corpo a corpo contra uma figura no outro portal. No entanto, todos os ataques contra o outro portal são a -4 AD. Um ataque à distância - seja de arco/besta, arma arremessável ou Feitiço - que passe através de um hex com portal não viaja pelo portal; continua a sua trajetória como se o portal não existisse. *Para determinar hexes elegíveis para o segundo portal, use regras de ataque à distância; se um hex estiver dentro das regras de sem cobertura ou cobertura parcial é candidato, mas hexes com cobertura completa não são elegíveis.", duration:"10 Turns", xp:4 },
+  { kn:1, name:"Heightened Senses", school:"Enchantment", cat:"T", exhaustion:"0E", description:"Pela duração do feitiço, os sentidos do alvo são aguçados. Portanto, todos os hexes ao redor são tratados como hexes frontais.", duration:"5 Turns", xp:2 },
+  { kn:1, name:"Readied Strike", school:"Enchantment", cat:"T", exhaustion:"2E", description:"O Alvo, que pode ser o próprio conjurador, ganha Readied Strike enquanto não se mover. Assim que o Alvo se mover, Readied Strike é perdido. Readied Strike aplica-se no primeiro ataque contra inimigos que ficam Embattled com o Alvo. O Alvo faz este ataque no início da Ordem de Ataque (embora ao seu AD normal) e, se bem-sucedido, causa dano crítico, permitindo rolar o Dado de Crit. Este ataque deve ser feito no mesmo turno em que o inimigo fica Embattled. Se Readied Strike for conjurado num Alvo que já está Embattled, o Alvo não pode fazer Readied Strikes contra inimigos com os quais já está Embattled.", duration:"10 Turns", xp:5 },
+  { kn:2, name:"Arcane Storm", school:"Arcane", cat:"T", exhaustion:"1E + 1E/turn", description:"Causa 1d4 de dano a todas as criaturas e aliados, exceto o herói conjurador (então o Feitiço pode ser conjurado em si mesmo) no hex alvo e nos hexes adjacentes ao redor (7 hexes no total). Continua a causar dano a cada turno que o conjurador mantiver o Feitiço. O dano ignora armadura e escudos, então armadura não fornece benefício, incluindo armadura mágica e armadura natural como pelo e escamas. Role o dano uma vez e aplique a todas as criaturas. Como todos os feitiços Arcanos, se o conjurador tiver a Disciplina Elemental Bending, Arcane Storm pode ser imbuído com um elemento específico para conjurar Air Storm, Fire Storm ou Ice Storm. Elemental Bending pode ser aplicado a Arcane Storm a cada turno. Hexes com Arcane Storm não concedem cobertura. O Storm permanecerá nos hexes onde foi conjurado até ser dispensado pelo conjurador. Múltiplas conjurações de Storm podem ser acumuladas nos mesmos hexes.", duration:"Concentration", xp:4 },
+  { kn:2, name:"Grappling Agility", school:"Furtherance", cat:"T", exhaustion:"1E + 1E/turn", description:"O alvo vence automaticamente testes opostos para Grapple ou para evitar um Grapple contra inimigos de 1 hex. Os inimigos não sabem que o alvo está sob o Feitiço, então podem tentar repetidamente fazer Grapple. Se conjurado num alvo que já está em Grapple, o alvo terá sucesso automaticamente nas tentativas de escapar, e pode então rastejar para um hex adjacente.", duration:"Concentration", xp:4 },
+  { kn:2, name:"Grease", school:"Conjuration", cat:"T", exhaustion:"1E", description:"Como Grease, Minor (KN0) exceto que seleciona sete hexes contíguos para ficarem engordurados até ao final do combate.", duration:"Combat", xp:4 },
+  { kn:2, name:"Inversus Minor", school:"Enigmatic", cat:"T", exhaustion:"2E", description:"Arremesse o Feitiço contra um alvo de um hex. Se bem-sucedido, troca imediatamente de posição com o alvo. Pelo restante do turno, tanto o conjurador como o alvo ficam virados nas direções em que estavam quando o Feitiço foi conjurado.", duration:"Instantaneous", xp:5 },
+  { kn:2, name:"Magic Armor I", school:"Enchantment", cat:"T", exhaustion:"1E", description:"Fornece três pontos de armadura. Acumula com outra armadura, mas não acumula com outros Feitiços que fornecem armadura, como conjurações subsequentes de Magic Armor, mas pode ser acumulado com Magic Shield.", duration:"3 Turns", xp:3 },
+  { kn:2, name:"Summon Beast II", school:"Summoning", cat:"C", exhaustion:"1E + 1E/turn", description:"Invoca um animal não voador de tamanho médio à sua escolha que está completamente sob o seu controlo, como um puma ou lobo. O animal tem as seguintes estatísticas: HP10, MT2, DX4/AD4, KN0, Grapple 3, Movement 6, Mordida/Garras 2d4 de dano.", duration:"Concentration", xp:5 },
+  { kn:2, name:"Trip", school:"Curse", cat:"T", exhaustion:"2E (4E MT20+)", description:"O alvo é derrubado e cai prone.", duration:"Instantaneous", xp:5 },
+  { kn:3, name:"Control Animal", school:"Curse", cat:"T", exhaustion:"1E + 1E/turn", description:"Ganha controlo de um animal ou besta mágica que tenha KN0 e MT inferior a 20. O animal faz imediatamente um teste oposto de KN para evitar ser controlado (role AD igual ao KN do animal menos o KN do conjurador, que será um AD negativo). Se o alvo tiver sucesso no save, o conjurador ainda gasta 1E mas o Feitiço falha. Se o animal falhar o save, o conjurador pode imediatamente controlar o animal, decidindo todos os movimentos e ações no turno do animal enquanto o Feitiço for mantido. Se conjurado numa imagem, a imagem é dissipada e desaparece. Animais incluem todos os mamíferos, répteis, anfíbios, dinossauros, insetos e bestas mágicas, desde que o seu KN seja 0. Todos os mortos-vivos, incluindo animais mortos-vivos (zombie), não são afetados. Se conjurado num animal controlado por um inimigo, seja via Control Animal ou porque o animal é invocado, em vez do animal fazer um teste oposto, o teste oposto é feito contra o conjurador adversário. Se o controlo do animal inimigo for bem-sucedido, o inimigo cancelará imediatamente o Feitiço, fazendo o animal desaparecer.", duration:"Concentration", xp:5 },
+  { kn:3, name:"Create Undead", school:"Conjuration", cat:"T", exhaustion:"0E, 1HP", description:"Cria um zombie a partir de um cadáver. O zombie tem o mesmo MT que tinha antes da morte, mas o Feitiço só pode ser conjurado num cadáver de MT5 ou menos. Imbuir um cadáver com vida requer que o conjurador doe alguma essência vital, então este Feitiço causa 1HP de dano ao conjurador em vez de Exhaustion. O Feitiço leva três turnos para conjurar, então é geralmente usado após o combate. Create Undead pode ser conjurado durante o Descanso, criando um zombie que ficará com o grupo em perpetuidade, até ser destruído. O zombie tem o mesmo HP que o HP máximo (a plena saúde) antes da morte. DX e Movement são os mesmos de antes da morte, mas DX é reduzido em 1, KN é 0, Movement é reduzido em 2. Pode usar armas/armadura se podia usar armas antes da morte. O zombie não pode curar-se. O herói pode controlar apenas 1 zombie de cada vez. É necessária a Fase de Movimento do herói para dirigir um zombie a mover-se e atacar um inimigo, e outra Fase de Movimento para redirecionar o zombie para atacar um inimigo diferente. Uma vez dirigido, o zombie continuará a atacar o inimigo até que morra, mas ficará inerte até ser redirecionado. Este Feitiço pode ser usado fora de combate.", duration:"3 Turns to Cast", xp:5 },
+  { kn:3, name:"Delve Secrets I", school:"Enigmatic", cat:"S", exhaustion:"2E + E Cost", description:"Pode conjurar um Feitiço de Criação [C] ou Arremesso [T] que não conhece, mas custa 2E a mais que o custo normal do Feitiço na conjuração inicial. Para feitiços com custo de manutenção, o custo de manutenção é o mesmo. Não pode conjurar Feitiços [S] que não conhece. O Feitiço conjurado deve ser de KN inferior ao Delve Secrets usado. Para Delve Secrets I, o Feitiço desconhecido conjurado deve ser KN 0-2.", duration:"Variable", xp:6 },
+  { kn:3, name:"Guise of the Beast I", school:"Shapeshifting", cat:"S", exhaustion:"1E", description:"O conjurador transforma-se num lobo ou besta similar e ganha as seguintes estatísticas: +5 HP, +5 MT, DX 4, AD 4, Grapple 3, Movement 6, 1d6+1 de dano. O conjurador só pode conjurar este Feitiço em si mesmo e não pode conjurar Feitiços, usar Disciplinas, nem usar armas ou itens na forma bestial. O conjurador pode voltar ao normal gastando a Fase de Movimento ou uma Ação para retransformar-se. Armadura não se transfere para a forma bestial. O HP bónus obtido na forma bestial absorve ferimentos e/ou Exhaustion primeiro. Exemplo: com +5 HP, se um herói sofrer 6 HP de dano, ao voltar à forma normal só acumulará 1 HP de dano. Guise of the Beast dissipa-se após o combate e não pode ser mantido em tempo de inatividade ou após o combate ser resolvido. Disciplinas de Artes Marciais não podem ser aplicadas a ataques naturais de heróis transformados usando feitiços de metamorfose.", duration:"Concentration", xp:5 },
+  { kn:3, name:"Magic Shield II", school:"Enchantment", cat:"T", exhaustion:"1E", description:"Como Magic Shield I, acima, mas fornece 2 pontos de armadura.", duration:"10 Turns", xp:5 },
+  { kn:3, name:"Reverse Ranged Attacks", school:"Furtherance", cat:"T", exhaustion:"1E + 1E/turn", description:"Uma barreira protetora invisível forma-se ao redor do alvo. Quando o alvo é atingido por armas de longo alcance, armas arremessáveis ou Feitiços de arremesso, os ataques são revertidos e atingem o atacante original. Uma segunda rolagem de ataque não é necessária; se o atacante acertar um alvo protegido por Reverse Ranged Attack, o atacante automaticamente acerta a si mesmo. Note que o atacante ainda deve rolar para acertar o alvo protegido.", duration:"Concentration", xp:5 },
+  { kn:3, name:"Sleep", school:"Curse", cat:"T", exhaustion:"3E", description:"O alvo adormece até ser acordado ou atingido. Apenas MT<10.", duration:"Instantaneous", xp:5 },
+  { kn:3, name:"Summon Spectral Warrior", school:"Summoning", cat:"C", exhaustion:"1E + 1E/turn", description:"Invoca um guerreiro espectral que age como aliado e tem as seguintes estatísticas. Guerreiro Espectral: HP14, MT4, DX2, AD2, KN0, Grapple 2, Movement 5, Arma Espectral: 2d6 de dano.", duration:"Concentration", xp:6 },
+  { kn:3, name:"Trap", school:"Conjuration", cat:"T", exhaustion:"1E", description:"O conjurador escolhe sete hexes contíguos que ficam armadilhados. A armadilha é invisível. Criaturas devem parar pelo turno quando entram num hex armadilhado. Nos turnos seguintes, criaturas presas devem ter sucesso num teste Moderado de MT (AD+0) para se mover, e então só podem mover-se um hex. Se MT for 20 ou superior podem mover-se dois hexes. Afeta imagens.", duration:"Combat", xp:5 },
+  { kn:4, name:"Arcane Nova", school:"Arcane", cat:"T", exhaustion:"1E + 1E/turn", description:"Causa 1d6 de dano a todas as criaturas, exceto o herói conjurador, no hex alvo e nos hexes adjacentes ao redor (sete hexes no total). O Feitiço pode ser conjurado em si mesmo. Continua a infligir dano a cada turno que o conjurador mantiver o Feitiço. O dano ignora armadura e escudos, então armadura não fornece benefício. Isto inclui armadura mágica e armadura natural como pelo e escamas. Role o dano uma vez e aplique a todas as criaturas. Como todos os feitiços Arcanos, se o conjurador tiver a Disciplina Elemental Bending, Arcane Nova pode ser imbuído com um elemento específico para conjurar Air Nova, Fire Nova ou Ice Nova.", duration:"Concentration", xp:5 },
+  { kn:4, name:"Arcane Flux, Greater", school:"Arcane", cat:"C", exhaustion:"2E", description:"Como Arcane Flux, mas em 3 espaços contíguos. Pode ser imbuído com Ar, Fogo ou Gelo com a Disciplina Elemental Bending. Hexes com Arcane Flux não concedem cobertura parcial.", duration:"Combat", xp:5 },
+  { kn:4, name:"Augury", school:"Enigmatic", cat:"C", exhaustion:"3E", description:"Fornece ao conjurador um breve vislumbre do futuro. Permite aos jogadores tomar intencionalmente uma escolha numa situação fora de combate, compreender as ramificações da decisão ao ver o resultado no Loremaster, e depois carregar na seta de voltar para ver ou fazer uma seleção diferente (se desejado). A menos que indicado pelo Loremaster, um período de descanso não segue Augury. Este Feitiço pode ser usado fora de combate.", duration:"Loremaster", xp:5 },
+  { kn:4, name:"Fly", school:"Furtherance", cat:"T", exhaustion:"1E + 1E/2 turns", description:"Ganha Movement 6 enquanto voa. Enquanto voa, tem -1 AD para conjurar qualquer Feitiço e -2 AD para atacar corpo a corpo, -3 AD para atacar com ataque à distância. Outras criaturas que o atacam têm -3 AD para o acertar. Se o voo for cancelado enquanto voa, cai ao chão sofrendo 2d6 de dano.", duration:"Concentration", xp:5 },
+  { kn:4, name:"Inversus Major", school:"Enigmatic", cat:"T", exhaustion:"2E", description:"Faça um ataque contra um alvo de um hex. Este Feitiço é mais fácil de arremessar que a maioria dos feitiços, então use os incrementos de alcance para uma arma de longo alcance, como um arco. Se bem-sucedido, troca imediatamente a posição do alvo no mapa com a de outra figura de um hex que esteja a até três hexes de si. Pode escolher ser o alvo. Se não houver outra figura a até três hexes, então deve ser a figura que troca de localização com o alvo. Pelo restante do turno, tanto o conjurador como o alvo permanecem virados na mesma direção em que estavam quando o Feitiço foi conjurado.", duration:"Instantaneous", xp:5 },
+  { kn:4, name:"Paralysis", school:"Curse", cat:"T", exhaustion:"4E", description:"Imobiliza o alvo por três turnos. O alvo permanece de pé, mas não pode mover-se ou atacar. Criaturas paralisadas não podem provocar Embattle nos inimigos. O alvo paralisado ainda pode conjurar Feitiços dois ou mais pontos abaixo do seu KN. Atacar uma criatura paralisada com ataque corpo a corpo concede ao atacante +4 AD para acertar. Paralysis não afeta criaturas com MT10+.", duration:"3 Turns", xp:5 },
+  { kn:4, name:"Summon Beast III", school:"Summoning", cat:"C", exhaustion:"2E + 1E/turn", description:"Invoca uma besta que age como aliado sob o seu controlo, como um urso, leão, tigre, crocodilo ou similar. Stats: HP20, MT10, DX0, AD0, Grapple 5, KN0, Movement 5, 2d6+1d4 de dano.", duration:"Concentration", xp:5 },
+  { kn:4, name:"Sunder Item", school:"Curse", cat:"T", exhaustion:"2E", description:"Estilhaça uma arma, escudo ou outro item visível, tornando-o inutilizável. Itens mágicos podem ser reparados.", duration:"Instantaneous", xp:5 },
+  { kn:4, name:"True Vision", school:"Enchantment", cat:"T", exhaustion:"0E", description:"Dá ao alvo a capacidade de ver através de Blur, invisibilidade, escuridão e outras condições similares.", duration:"5 Turns", xp:3 },
+  { kn:5, name:"Delve Secrets II", school:"Enigmatic", cat:"S", exhaustion:"2E + E Cost", description:"Pode conjurar um Feitiço de Criação [C] ou Arremesso [T] que não conhece, mas custa 2E a mais que o custo normal do Feitiço na conjuração inicial. Feitiços com custo de manutenção não são alterados; o custo de manutenção é o mesmo. Não pode conjurar Feitiços [S] que não conhece. O Feitiço conjurado deve ser de KN inferior ao Delve Secrets usado. Para Delve Secrets II o Feitiço desconhecido conjurado deve ser KN 0\u20134. Delve Secrets I não é pré-requisito obrigatório.", duration:"Variable", xp:6 },
+  { kn:5, name:"Grease, Greater", school:"Conjuration", cat:"T", exhaustion:"1E", description:"Como Grease, exceto que as criaturas têm Misfortune nos seus testes para evitar cair.", duration:"Combat", xp:4 },
+  { kn:5, name:"Guise of the Beast II", school:"Shapeshifting", cat:"S", exhaustion:"2E", description:"Como Guise of the Beast I, exceto que o conjurador transforma-se num urso ou besta similar e ganha as seguintes estatísticas: +8 HP, +8 MT, DX 1, AD 1, Grapple 4, Movement 5, 2d6 de dano, 1pt de armadura. O conjurador só pode conjurar este Feitiço em si mesmo. Disciplinas de Artes Marciais não podem ser aplicadas a ataques naturais de heróis transformados usando feitiços de metamorfose.", duration:"Combat", xp:5 },
+  { kn:5, name:"Magic Armor II", school:"Enchantment", cat:"T", exhaustion:"1E", description:"Fornece 4 pontos de armadura. Acumula com outra armadura, mas não com Magic Armor I e/ou III.", duration:"3 Turns", xp:3 },
+  { kn:5, name:"Paralysis, Greater", school:"Curse", cat:"T", exhaustion:"4E", description:"Imobiliza o alvo por quatro turnos. Como Paralysis, mas funciona contra criaturas de qualquer tamanho e MT.", duration:"4 Turns", xp:5 },
+  { kn:5, name:"Summon Spectral Hero", school:"Summoning", cat:"C", exhaustion:"2E + 1E/turn", description:"Invoca um herói espectral que age como aliado e tem as seguintes estatísticas. Herói Espectral: HP16, MT6, DX4 AD2, KN0, Grapple 3, Movement 4, Arma Espectral (2d6+1d4), armadura Gambeson (2 pontos de armadura).", duration:"Concentration", xp:6 },
+  { kn:5, name:"Telekinesis", school:"Curse", cat:"T", exhaustion:"xE", description:"Pode mover uma criatura alvo. O alvo deve ter um hex de tamanho ou menos; este Feitiço não tem efeito em criaturas maiores que um hex. Com sucesso, o conjurador move o alvo um hex por cada ponto de Exhaustion gasto, mais um hex adicional. Se o alvo colidir com uma obstrução (definida como um objeto que fornece cobertura), o alvo para no hex anterior e deve fazer um teste de Acrobatics ou cair prone. (Criaturas sem stat de Acrobatics usam o seu AD.) A dificuldade do teste é modificada pela quantidade de hexes que o alvo foi movido. Por exemplo, se o alvo for movido três hexes, o teste é a (AD-3). Se o alvo colidir com uma criatura de um hex, ambos devem fazer um teste de Acrobatics ou cair prone. Se o alvo colidir com uma criatura maior que dois hexes, essa criatura não é afetada mas o Alvo ainda deve fazer um teste de Acrobatics. O Feitiço pode ser conjurado em aliados assim como em inimigos. Este Feitiço também pode ser usado para mover combatentes Embattled para que não estejam mais Embattled.", duration:"Instantaneous", xp:5 },
+  { kn:6, name:"Control Humanoid", school:"Curse", cat:"T", exhaustion:"3E + 1E/turn", description:"Ganha controlo de um humanoide. O alvo faz imediatamente um teste oposto de KN (subtraia o KN do conjurador do KN do alvo para determinar o AD do teste oposto). Se o alvo tiver sucesso no save, o conjurador ainda gasta 3E, mas o Feitiço falha. Se o alvo falhar o save, o mago conjurador pode imediatamente controlar o alvo, decidindo todos os movimentos e ações no turno do alvo enquanto o Feitiço for mantido. Este Feitiço dissipa automaticamente imagens. Humanoides são definidos como todas as criaturas com duas pernas e dois braços, excluindo mortos-vivos, djinn e demónios. Se conjurado numa pessoa controlada por outro mago, não há teste oposto. Em vez disso, ambos os magos fazem testes opostos de KN entre si para determinar qual mago ganha controlo do alvo.", duration:"Concentration", xp:5 },
+  { kn:6, name:"Create Undead, Greater", school:"Conjuration", cat:"T", exhaustion:"0E, 2HP", description:"Como Create Undead, exceto que não há limite de tamanho do cadáver zombie e não há penalidade de AD se o MT do cadáver for 5 ou menos. Causa 2 HP de dano ao conjurador para criar o morto-vivo. Este Feitiço pode ser usado fora de combate.", duration:"3 Turns to Cast", xp:5 },
+  { kn:6, name:"Dispel", school:"Enigmatic", cat:"T", exhaustion:"1E", description:"Dissipa todos os Feitiços e efeitos de Feitiços num hex escolhido, incluindo criações e criaturas invocadas. Se conjurado em si mesmo, afeta todos os Feitiços num raio de 10 hexes, incluindo Feitiços \"amigáveis\".", duration:"Instantaneous", xp:4 },
+  { kn:6, name:"Regeneration", school:"Enchantment", cat:"T", exhaustion:"1E", description:"O alvo cura 1d6 de dano por turno. Regeneration só pode ser conjurado uma vez por dia num herói alvo. Portanto, o conjurador pode conjurar Regeneration uma vez em cada herói do grupo diariamente, incluindo a si mesmo. Mesmo que mais de um conjurador no grupo conheça o Feitiço Regeneration, só pode ser conjurado uma vez no total por dia em cada herói. Este Feitiço pode ser usado fora de combate.", duration:"3 Turns", xp:6 },
+  { kn:6, name:"Ricochet Attack", school:"Furtherance", cat:"T", exhaustion:"1E + 1E/turn", description:"Protege magicamente o alvo de ataques corpo a corpo. Quando o alvo é atingido por um ataque corpo a corpo, o golpe é refletido de volta ao atacante. Tanto o atacante como o alvo sofrem metade do dano arredondado para cima. Por exemplo, se um inimigo atingir um alvo por 7 HP de dano, tanto o atacante como o indivíduo protegido por este Feitiço sofrem 4 de dano. Isto só afeta ataques corpo a corpo, incluindo ataques em Grapple. Não afeta ataques à distância ou ataques de Feitiços. O valor de armadura de cada combatente é subtraído após dividir o dano.", duration:"Concentration", xp:5 },
+  { kn:6, name:"Spell Shield", school:"Furtherance", cat:"T", exhaustion:"1E + 1E/turn", description:"Cria uma barreira mágica ao redor do alvo e impede todos os outros Feitiços de afetar o alvo, incluindo Feitiços à distância.", duration:"Concentration", xp:4 },
+  { kn:6, name:"Summon Flying Beast", school:"Summoning", cat:"C", exhaustion:"2E + 1E/turn", description:"Invoca um hipogrifo ou besta voadora similar que age como aliado e tem as seguintes estatísticas. Hipogrifo: HP20, MT10 DX1, AD1, KN0, Grapple 5, Movement 5 no chão, 8 voando, 2d6 de dano, Escamas (2 pontos de proteção de armadura).", duration:"Concentration", xp:5 },
+  { kn:6, name:"Summon Colossus", school:"Summoning", cat:"C", exhaustion:"2E + 1E/turn", description:"Invoca um colosso, como um gigante ou ciclope, que age como aliado e tem as seguintes estatísticas. Colosso: Criatura de 3 Hexes. HP40, MT30, DX0, AD0, KN0, Grapple 3 exceto 8 para evitar ser agarrado, Movement 4, 4d6 de dano. Tem Alcance e Overrun.", duration:"Concentration", xp:5 },
+  { kn:6, name:"Teleport", school:"Enchantment", cat:"S", exhaustion:"1E", description:"Teleporta-se para qualquer lugar no mapa de batalha. Mova a sua miniatura para qualquer hex e vire-se na direção desejada.", duration:"Instantaneous", xp:4 },
+  { kn:6, name:"Tentacles of Gaia, Lesser", school:"Conjuration", cat:"C", exhaustion:"2E + 1E/turn", description:"Tentáculos surgem do chão em 7 hexes contíguos definidos pelo herói conjurador. O primeiro hex deve estar a até três hexes do conjurador. Uma vez conjurados, os tentáculos não mudarão de localização nos turnos seguintes. Os tentáculos fazem Grapple em todas as criaturas, amigos e inimigos, nos hexes afetados mas não nos hexes adjacentes. Os tentáculos agem no turno do herói conjurador e têm Grapple 3 para testes opostos de Grapple. Têm Grappling Expertise (podem fazer um 2º Teste de Grapple se o primeiro falhar). Role separadamente contra cada criatura. Tentáculos têm AD2 para ataques e causam 1d6+1d4 de dano.", duration:"Concentration", xp:5 },
+  { kn:7, name:"Divine Might", school:"Furtherance", cat:"T", exhaustion:"xE + xE/turn", description:"Os ataques corpo a corpo do alvo causam 1d6 de dano adicional por E gasto, até um máximo de 3E. Por exemplo, se o herói conjurador gastar 3E, o ataque corpo a corpo do alvo causará 3d6 de dano extra a cada turno que o Feitiço for mantido.", duration:"Concentration", xp:5 },
+  { kn:7, name:"Guise of the Beast III", school:"Shapeshifting", cat:"S", exhaustion:"2E", description:"Como Guise of the Beast I, exceto que o conjurador transforma-se num hipogrifo ou besta similar e ganha as seguintes estatísticas: +6 HP, +5 MT, DX1, AD1, Grapple 6, Movement 6 no chão, 8 voando, Garras 2d6 de dano. 2 pontos de proteção de armadura. O conjurador só pode conjurar este Feitiço em si mesmo. Veja regras de voo. Disciplinas de Artes Marciais não podem ser aplicadas a ataques naturais de heróis transformados usando feitiços de metamorfose.", duration:"Concentration", xp:5 },
+  { kn:7, name:"Magic Armor III", school:"Enchantment", cat:"T", exhaustion:"1E", description:"Fornece 6 pontos de armadura. Acumula com outra armadura mas não com Magic Armor I ou II.", duration:"3 Turns", xp:3 },
+  { kn:7, name:"Revival", school:"Enigmatic", cat:"T", exhaustion:"xE", description:"Traz o alvo de volta à vida se o alvo morreu na(s) última(s) (1) hora(s) de tempo de jogo. Custa 1E para aumentar o HP do alvo em 1. Para ser eficaz, o HP do alvo deve ser elevado a pelo menos -4, caso em que o alvo ainda está inconsciente. Elevar o HP para 1 revive o alvo à consciência. Por exemplo, se um herói morto tem -8HP, o conjurador deve gastar pelo menos 4E para trazer o alvo a -4HP, e 9E reviveria o herói morto a 1HP. O conjurador pode ficar inconsciente ou até morrer ao conjurar este Feitiço. Eben the Elder sacrificou famosamente a sua vida para trazer o Rei Khartok de volta à vida durante as Guerras Despóticas. Este Feitiço pode ser usado fora de combate.", duration:"Instantaneous", xp:5 },
+  { kn:7, name:"Summon Hydra", school:"Summoning", cat:"C", exhaustion:"2E + 1E/turn", description:"Invoca uma hidra ou besta similar de quatro hexes que age como aliado e tem as seguintes estatísticas. Hidra: HP40, MT30, DX3, AD3, KN0, Grapple 6, Movement 5. Tem cinco cabeças que atacam separadamente e causam 1d6+1d4 de dano cada. Tem Overrun.", duration:"Concentration", xp:5 },
+  { kn:7, name:"Transfer Wounds", school:"Enigmatic", cat:"T-T", exhaustion:"xE", description:"Transfere dano. O conjurador perde E igual ao HP transferido. O conjurador deve primeiro rolar para arremessar um Feitiço no alvo1 a ser curado (por exemplo, um membro da equipa). Depois, se bem-sucedido, o conjurador rola para arremessar o Feitiço no alvo2, que receberá o dano. O alvo1 cura todo o dano de HP sofrido neste combate. O alvo2 perde HP igual à quantidade de dano curado no alvo1. Armadura não fornece proteção. Se o conjurador escolher si mesmo como alvo a curar, então apenas uma rolagem é necessária, que é a rolagem de ataque para arremessar o Feitiço no inimigo a ser ferido. Se desejar, o conjurador pode escolher transferir menos que a quantidade total de HP. Este Feitiço não cura Exhaustion.", duration:"Instantaneous", xp:5 },
+  { kn:8, name:"Arcane Flux, Superior", school:"Arcane", cat:"C", exhaustion:"1E", description:"Como o Feitiço Arcane Flux, mas em 7 espaços contíguos ou menos. Pode ser imbuído com Ar, Fogo ou Gelo com a Disciplina Elemental Bending.", duration:"Combat", xp:5 },
+  { kn:8, name:"Delve Secrets III", school:"Enigmatic", cat:"S", exhaustion:"2E + E Cost", description:"Pode conjurar um Feitiço de Criação [C] ou Arremesso [T] que não conhece, mas custa 2E a mais que o custo normal do Feitiço na conjuração inicial. Feitiços com custo de manutenção não são alterados; o custo de manutenção é o mesmo. Não pode conjurar Feitiços [S] que não conhece. O Feitiço conjurado deve ser de KN inferior ao Delve Secrets usado. Portanto, com Delve Secrets III o Feitiço desconhecido conjurado deve ser KN 0\u20137. Delve Secrets I e II não são pré-requisitos obrigatórios.", duration:"Variable", xp:6 },
+  { kn:8, name:"Guise of the Beast IV", school:"Shapeshifting", cat:"S", exhaustion:"2E", description:"Como Guise of the Beast I, exceto que o conjurador transforma-se numa hidra ou besta similar, torna-se quatro hexes de tamanho e ganha as seguintes estatísticas: MT+15, HP+15, DX3, AD3, Movement 5, cinco ataques separados cada um 1d6+1d4. Disciplinas de Artes Marciais não podem ser aplicadas a ataques naturais de heróis transformados usando feitiços de metamorfose.", duration:"Combat", xp:5 },
+  { kn:8, name:"Immunity", school:"Furtherance", cat:"T", exhaustion:"3E + 2E/turn", description:"O alvo é imune a todo dano e Feitiços enquanto o Feitiço for mantido. Dispel remove Immunity.", duration:"Concentration", xp:5 },
+  { kn:8, name:"Paralysis, Mass", school:"Curse", cat:"T", exhaustion:"9E", description:"Como Paralysis (KN4), exceto que todas as criaturas em sete hexes contíguos são imobilizadas. Só afeta criaturas com menos de MT10, a menos que mire intencionalmente apenas uma criatura, caso em que pode congelar uma criatura até MT30.", duration:"3 Turns", xp:5 },
+  { kn:8, name:"Summon Djinn", school:"Summoning", cat:"C", exhaustion:"4E", description:"Invoca um djinn ou entidade similar com as seguintes estatísticas. Djinn: HP50, MT15, AD3 mas Haste na ordem de ataque, KN6, pode teleportar-se sem custo de E como Movimento. Ações: Garra 2d6 + Spellstrike, Feitiço Terror sem custo de E, crítico em todas as faces de acerto como Swordsmanship. O herói conjurador deve usar a sua Fase de Movimento a cada turno para forçar o djinn a agir conforme a vontade do herói rolando um teste oposto de KN. Com falha, o djinn zomba do conjurador e não age.", duration:"10 Turns", xp:5 },
+  { kn:8, name:"Tentacles of Gaia, Greater", school:"Conjuration", cat:"C", exhaustion:"3E + 1E/turn", description:"Como Lesser Tentacles, mas o Feitiço é arremessado num hex. Com sucesso, afeta o hex alvo e todos os hexes num raio de cinco hexes. Os tentáculos têm MT16, Grapple 9, AD4, Grappling Expertise e causam 2d6+1 de dano.", duration:"Concentration", xp:5 },
+  { kn:8, name:"Word of Death", school:"Enigmatic", cat:"T", exhaustion:"xE", description:"Compare o HP atual do alvo e do conjurador. Aquele com menos HP morre instantaneamente, como se estivesse a -5 HP. Se o conjurador sobreviver, sofre então um custo de Exhaustion igual à quantidade de HP que o alvo tinha antes do Feitiço. Por exemplo, se o alvo tinha 7HP e o herói conjurador tinha 9HP antes do Feitiço ser conjurado, então o alvo morre e o herói conjurador sofre 7 pontos de exhaustion.", duration:"Instantaneous", xp:5 },
+];
+
+const SKILLS_LIST = ["Athletics", "Lore", "Navigation", "Perception", "Persuasion", "Scoundrel"];
+
+// ─── STYLES ──────────────────────────────────────────────────────────────────
+
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap');
+
+:root {
+  --bg-deep: #0d0b0e;
+  --bg-panel: #16131a;
+  --bg-card: #1e1a24;
+  --bg-input: #252030;
+  --border: #3a3345;
+  --border-focus: #8b6cc7;
+  --text-primary: #e8e0f0;
+  --text-secondary: #9a8fb0;
+  --text-dim: #6b5f80;
+  --accent: #a97cf0;
+  --accent-glow: #a97cf040;
+  --gold: #d4a843;
+  --gold-dim: #8b7530;
+  --red: #d44040;
+  --red-dim: #8b3030;
+  --green: #50b060;
+  --check-on: #a97cf0;
+  --check-off: #2a2535;
+}
+
+[data-theme="light"], [data-theme="light"] .spell-tooltip {
+  --bg-deep: #f0eff2;
+  --bg-panel: #ffffff;
+  --bg-card: #f8f7fa;
+  --bg-input: #f0eef4;
+  --border: #d0cad8;
+  --border-focus: #7c5cbf;
+  --text-primary: #1a1520;
+  --text-secondary: #5a5070;
+  --text-dim: #8a80a0;
+  --accent: #7c5cbf;
+  --accent-glow: #7c5cbf30;
+  --gold: #a07820;
+  --gold-dim: #c8a040;
+  --red: #c03030;
+  --red-dim: #e06060;
+  --green: #2a8a3a;
+  --check-on: #7c5cbf;
+  --check-off: #e0dce6;
+  --readonly-bg: #eae6f0;
+  --readonly-border: #c8c0d4;
+  --readonly-color: #5a3d8a;
+  --xp-bg: #eae6f0;
+  --xp-border: #c8c0d4;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: 'Crimson Pro', Georgia, serif;
+  line-height: 1.5;
+}
+
+.sheet-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+
+.sheet-header {
+  text-align: center;
+  margin-bottom: 24px;
+  padding: 20px 0 16px;
+  border-bottom: 2px solid var(--border);
+  position: relative;
+}
+.sheet-header::before {
+  content: '⬡';
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-deep);
+  padding: 0 12px;
+  color: var(--accent);
+  font-size: 14px;
+}
+.sheet-title {
+  font-family: 'Cinzel', serif;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.sheet-subtitle {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.action-bar {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 7px 16px;
+  color: var(--text-secondary);
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.action-btn .btn-icon { font-size: 14px; }
+.action-btn-file {
+  display: none;
+}
+
+@media print {
+  body { background: #fff !important; color: #111 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sheet-container { max-width: 100%; padding: 10px; }
+  .action-bar, .add-btn, .remove-btn, .collapse-toggle { display: none !important; }
+  .panel { border-color: #ccc; background: transparent; break-inside: avoid; page-break-inside: avoid; margin-bottom: 0; padding: 10px 0; border-bottom: 1px solid #ccc; border-top: none; border-left: none; border-right: none; }
+  .sheet-header { border-bottom-color: #ccc; }
+  .sheet-header::before { background: #fff; color: #666; }
+  .sheet-title { background: none; -webkit-text-fill-color: #333; color: #333; }
+  .sheet-subtitle { color: #888; }
+  .section-title { color: #555; }
+  .section-title::after { background: linear-gradient(90deg, #ccc 0%, transparent 100%); }
+  .stat-box { background: #f8f8f8; border-color: #ddd; }
+  .attr-box { background: #f8f8f8; border-color: #ddd; }
+  .attr-btn { display: none; }
+  .attr-total { color: #333; }
+  .attr-total-val { color: #222; }
+  .stat-label { color: #666; }
+  .stat-input, .stat-input.readonly { background: #fff; border-color: #ccc; color: #222; font-size: 16px; }
+  .stat-hint { color: #2a7a2a; }
+  .name-input { border-color: #ccc; color: #111; background: #fff; }
+  .race-select { border-color: #ccc; color: #111; background: #fff; }
+  .race-bonus { color: #2a7a2a; }
+  .level-box { background: #f8f8f8; border-color: #ddd; }
+  .level-input { background: #fff; border-color: #ccc; color: #222; }
+  .level-hint { color: #2a7a2a; }
+  .data-table th { color: #555; border-bottom-color: #ccc; }
+  .data-table td { border-bottom-color: #eee; }
+  .ro-cell { color: #555; }
+  .ro-cell.requisite { color: #c00; }
+  .desc-cell { color: #555; }
+  .kn-cell { color: #555; }
+  .xp-cell { color: #777; }
+  .dmg-cell { color: #c00; }
+  .cb-cell.cb-on { background: #555; }
+  .cb-cell.cb-off { background: #ddd; }
+  .custom-dropdown-trigger { border-color: #ccc; color: #111; background: #fff; }
+  .select-cell { border-color: #ccc; color: #111; background: #fff; }
+  .skill-row { background: #f8f8f8; border-color: #ddd; }
+  .skill-name { color: #222; }
+  .skill-bonus-input { background: #fff; border-color: #ccc; color: #222; }
+  .rank-cb { border-color: #aaa; background: #fff; }
+  .rank-cb.filled { background: #555; border-color: #555; }
+  .ancestry-input { background: #fff; border-color: #ccc; color: #444; }
+  .item-input { background: #fff; border-color: #ccc; color: #222; }
+  .xp-input { background: #fff; border-color: #ccc; color: #222; }
+  .xp-sep { color: #888; }
+  .xp-btn { display: none; }
+  .xp-total-display { background: #f8f8f8; border-color: #ccc; color: #222; }
+  .points-tracker { background: #f8f8f8; border-color: #ddd; }
+  .points-label { color: #555; }
+  .points-value { color: #222; }
+  .name-row { gap: 8px; }
+  .table-scroll { overflow-x: visible; }
+}
+
+.section-title {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border) 0%, transparent 100%);
+}
+
+.panel {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 16px 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border);
+}
+.panel:last-child { border-bottom: none; }
+
+.name-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.name-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-family: 'Cinzel', serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.name-input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 2px var(--accent-glow); }
+.name-input::placeholder { color: var(--text-dim); }
+
+.race-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  outline: none;
+  transition: border-color 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b5f80'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 30px;
+  min-width: 180px;
+  cursor: pointer;
+}
+.race-select:focus { border-color: var(--border-focus); box-shadow: 0 0 0 2px var(--accent-glow); }
+.race-select option { background: var(--bg-card); color: var(--text-primary); font-family: 'Crimson Pro', serif; }
+.race-bonus {
+  font-size: 11px;
+  color: var(--green);
+  margin-top: 2px;
+  text-align: center;
+  line-height: 1.3;
+  font-style: italic;
+}
+
+.level-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  min-width: 70px;
+}
+.level-input {
+  width: 44px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px;
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.level-input:focus { border-color: var(--border-focus); }
+.level-hint {
+  font-size: 8px;
+  color: var(--green);
+  margin-top: 2px;
+  font-family: 'Crimson Pro', serif;
+  font-style: italic;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.stat-hint {
+  font-size: 8px;
+  color: var(--green);
+  margin-top: 2px;
+  letter-spacing: 0.5px;
+  font-family: 'Crimson Pro', serif;
+  font-style: italic;
+}
+
+/* Custom Spell Dropdown */
+.custom-dropdown {
+  position: relative;
+  min-width: 140px;
+}
+.custom-dropdown-trigger {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 20px 3px 4px;
+  color: var(--text-primary);
+  font-family: 'Crimson Pro', serif;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b5f80'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  transition: border-color 0.2s;
+}
+.custom-dropdown-trigger:focus,
+.custom-dropdown-trigger.open { border-color: var(--border-focus); }
+.custom-dropdown-trigger .placeholder { color: var(--text-dim); }
+
+.custom-dropdown-list {
+  min-width: 260px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-focus);
+  border-radius: 4px;
+  z-index: 1000;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.custom-dropdown-item {
+  padding: 5px 8px;
+  cursor: pointer;
+  font-family: 'Crimson Pro', serif;
+  font-size: 13px;
+  color: var(--text-primary);
+  position: relative;
+  transition: background 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.custom-dropdown-item:hover {
+  background: var(--bg-input);
+}
+.custom-dropdown-item.selected {
+  color: var(--accent);
+}
+.custom-dropdown-item .dd-kn {
+  color: var(--accent);
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+.spell-tooltip {
+  position: fixed;
+  max-width: 340px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 10px 12px;
+  z-index: 200;
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  animation: tooltipFade 0.2s ease;
+}
+@keyframes tooltipFade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.spell-tooltip-name {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.spell-tooltip-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.spell-tooltip-meta span {
+  background: var(--bg-input);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.spell-tooltip-desc {
+  font-family: 'Crimson Pro', serif;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+.stat-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  text-align: center;
+}
+.stat-label {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+.stat-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px;
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.stat-input:focus { border-color: var(--border-focus); }
+.stat-input.readonly {
+  background: var(--readonly-bg, #1a1520);
+  border-color: var(--readonly-border, #2a2535);
+  color: var(--readonly-color, #c0a0f0);
+  cursor: default;
+  opacity: 0.9;
+}
+
+.xp-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+.xp-input {
+  width: 50px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px;
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+.xp-input:focus { border-color: var(--border-focus); }
+.xp-sep { color: var(--text-dim); font-size: 16px; }
+
+.xp-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+.xp-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.attr-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  text-align: center;
+}
+.attr-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.attr-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+.attr-btn:hover { border-color: var(--accent); color: var(--accent); }
+.attr-total {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  color: var(--accent);
+  margin-top: 2px;
+}
+.attr-total-val {
+  font-weight: 700;
+}
+
+.xp-total-display {
+  width: 50px;
+  background: var(--xp-bg, #1a1520);
+  border: 1px solid var(--xp-border, #2a2535);
+  border-radius: 3px;
+  padding: 4px;
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  cursor: default;
+}
+
+.points-tracker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.points-label {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.points-value {
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+.points-ok { color: var(--green); }
+.points-over { color: var(--red); }
+.points-zero { color: var(--text-dim); }
+
+/* Tables */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table th {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 6px 4px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 5px 4px;
+  border-bottom: 1px solid #1e1a24;
+  vertical-align: top;
+}
+.data-table tr:last-child td { border-bottom: none; }
+
+.select-cell {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 4px;
+  color: var(--text-primary);
+  font-family: 'Crimson Pro', serif;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  min-width: 140px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b5f80'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 20px;
+}
+.select-cell:focus { border-color: var(--border-focus); }
+.select-cell option { background: var(--bg-card); color: var(--text-primary); }
+
+.ro-cell { color: var(--text-secondary); font-size: 12px; }
+.ro-cell.requisite { color: var(--red); font-size: 11px; }
+.desc-cell { color: var(--text-secondary); font-size: 11px; line-height: 1.4; max-width: 320px; }
+.kn-cell { color: var(--accent); font-weight: 600; font-family: 'Cinzel', serif; font-size: 13px; }
+.xp-cell { color: var(--gold-dim); font-family: 'Cinzel', serif; font-size: 12px; }
+.dmg-cell { color: var(--red); font-weight: 500; }
+
+.cb-cell {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+.cb-on { background: var(--check-on); color: #fff; }
+.cb-off { background: var(--check-off); color: transparent; }
+
+.add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  padding: 6px 14px;
+  color: var(--text-dim);
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+.add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.glossary-section { display: flex; flex-direction: column; gap: 0; }
+.glossary-entry { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.glossary-entry:last-child { border-bottom: none; }
+.glossary-term { font-family: 'Cinzel', serif; font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+.glossary-text { font-family: 'Crimson Pro', serif; font-size: 13px; line-height: 1.55; color: var(--text-secondary); white-space: pre-line; }
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color 0.2s;
+}
+.remove-btn:hover { color: var(--red); }
+
+/* Skills */
+.skills-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+@media (max-width: 700px) { .skills-grid { grid-template-columns: 1fr; } }
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+.skill-name {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  width: 90px;
+  flex-shrink: 0;
+}
+.skill-bonus-input {
+  width: 36px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 4px;
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+.skill-bonus-input:focus { border-color: var(--border-focus); }
+
+.rank-checks {
+  display: flex;
+  gap: 3px;
+}
+.rank-cb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--bg-input);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rank-cb.filled {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.rank-cb:hover { border-color: var(--accent); }
+
+.ancestry-input {
+  flex: 1;
+  min-width: 60px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  color: var(--text-secondary);
+  font-family: 'Crimson Pro', serif;
+  font-size: 12px;
+  outline: none;
+}
+.ancestry-input:focus { border-color: var(--border-focus); }
+
+/* Items */
+.item-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 80px 30px;
+  gap: 6px;
+  align-items: start;
+  margin-bottom: 6px;
+}
+.item-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px 8px;
+  color: var(--text-primary);
+  font-family: 'Crimson Pro', serif;
+  font-size: 13px;
+  outline: none;
+}
+.item-input:focus { border-color: var(--border-focus); }
+.item-input.readonly {
+  background: var(--readonly-bg, #1a1520);
+  border-color: var(--readonly-border, #2a2535);
+  color: var(--readonly-color, #c0a0f0);
+  cursor: default;
+}
+
+.table-scroll { overflow-x: auto; }
+
+.collapse-toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  margin-left: 4px;
+  transition: color 0.2s;
+}
+.collapse-toggle:hover { color: var(--accent); }
+`;
+
+// ─── COMPONENTS ──────────────────────────────────────────────────────────────
+
+function StatBox({ label, value, onChange, numeric, hint }) {
+  const handleChange = (e) => {
+    if (numeric) {
+      const v = e.target.value.replace(/[^0-9-]/g, '');
+      onChange(v);
+    } else {
+      onChange(e.target.value);
+    }
+  };
+  return (
+    <div className="stat-box">
+      <div className="stat-label">{label}</div>
+      <input className="stat-input" type="text" inputMode={numeric ? "numeric" : undefined} value={value} onChange={handleChange} />
+      {hint && <div className="stat-hint">{hint}</div>}
+    </div>
+  );
+}
+
+function ReadOnlyStatBox({ label, value, hint }) {
+  return (
+    <div className="stat-box">
+      <div className="stat-label">{label}</div>
+      <input className="stat-input readonly" type="text" value={value} readOnly tabIndex={-1} />
+      {hint && <div className="stat-hint">{hint}</div>}
+    </div>
+  );
+}
+
+function AttributeBox({ label, initValue, onInitChange, bonus, onIncr, onDecr, hint }) {
+  const total = (parseInt(initValue, 10) || 0) + bonus;
+  return (
+    <div className="attr-box">
+      <div className="stat-label">{label}</div>
+      <input
+        className="stat-input"
+        type="text"
+        inputMode="numeric"
+        value={initValue}
+        onChange={e => onInitChange(e.target.value.replace(/[^0-9-]/g, ''))}
+        style={{ fontSize: 14, padding: 3 }}
+      />
+      <div className="attr-row" style={{ marginTop: 4 }}>
+        <button className="attr-btn" onClick={onDecr} title={`Decrease ${label}`}>−</button>
+        <span className="attr-total">Total: <span className="attr-total-val">{total}</span></span>
+        <button className="attr-btn" onClick={onIncr} title={`Increase ${label}`}>+</button>
+      </div>
+      {hint && <div className="stat-hint">{hint}</div>}
+    </div>
+  );
+}
+
+function CheckDot({ on }) {
+  return <span className={`cb-cell ${on ? "cb-on" : "cb-off"}`}>{on ? "●" : "○"}</span>;
+}
+
+function TooltipSelect({ value, onChange, items, renderTooltip, labelFn }) {
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef(null);
+  const tooltipRef = useRef(null);
+  const containerRef = useRef(null);
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+
+  const selectedItem = items.find(s => s.name === value);
+  const displayText = selectedItem ? (labelFn ? labelFn(selectedItem) : selectedItem.name) : null;
+
+  const removeTooltip = useCallback(() => {
+    if (tooltipRef.current) {
+      tooltipRef.current.remove();
+      tooltipRef.current = null;
+    }
+  }, []);
+
+  const showTooltip = useCallback((item, rect) => {
+    removeTooltip();
+    const tip = document.createElement("div");
+    tip.className = "spell-tooltip";
+    const leftPos = Math.min(rect.right + 8, window.innerWidth - 360);
+    const topPos = Math.max(rect.top, 8);
+    tip.style.left = leftPos + "px";
+    tip.style.top = topPos + "px";
+    tip.style.pointerEvents = "none";
+    tip.innerHTML = renderTooltip(item);
+    document.body.appendChild(tip);
+    tooltipRef.current = tip;
+  }, [removeTooltip, renderTooltip]);
+
+  const openDropdown = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 260) });
+    }
+    setOpen(true);
+  };
+
+  const closeDropdown = () => {
+    setOpen(false);
+    removeTooltip();
+    clearTimeout(timerRef.current);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target) &&
+          dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        closeDropdown();
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(timerRef.current);
+      removeTooltip();
+    };
+  }, [removeTooltip]);
+
+  const handleItemEnter = (item, e) => {
+    clearTimeout(timerRef.current);
+    removeTooltip();
+    const rect = e.currentTarget.getBoundingClientRect();
+    timerRef.current = setTimeout(() => {
+      showTooltip(item, rect);
+    }, 1000);
+  };
+
+  const handleItemLeave = () => {
+    clearTimeout(timerRef.current);
+    removeTooltip();
+  };
+
+  const handleSelect = (name) => {
+    onChange(name);
+    closeDropdown();
+  };
+
+  return (
+    <div className="custom-dropdown" ref={containerRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`custom-dropdown-trigger ${open ? "open" : ""}`}
+        onClick={() => { if (open) closeDropdown(); else openDropdown(); }}
+      >
+        {displayText || <span className="placeholder">— Selecionar —</span>}
+      </button>
+      {open && (
+        <div
+          ref={dropdownRef}
+          className="custom-dropdown-list"
+          style={{ position: "fixed", top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
+        >
+          <div
+            className="custom-dropdown-item"
+            onClick={() => handleSelect("")}
+            onMouseEnter={() => { clearTimeout(timerRef.current); removeTooltip(); }}
+          >
+            <span className="placeholder">— Selecionar —</span>
+          </div>
+          {items.map((s, idx) => (
+            <div
+              key={s.name + idx}
+              className={`custom-dropdown-item ${s.name === value ? "selected" : ""}`}
+              onClick={() => handleSelect(s.name)}
+              onMouseEnter={(e) => handleItemEnter(s, e)}
+              onMouseLeave={handleItemLeave}
+            >
+              <span className="dd-kn">[KN{s.kn}]</span> {s.name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkillRow({ skill, data, onChange, bonusText, extraBonus }) {
+  const hasBonusText = !!bonusText;
+  const computedBonus = data.ranks + (extraBonus || 0);
+  return (
+    <div className="skill-row">
+      <div className="skill-name">{skill}</div>
+      <input className="skill-bonus-input" value={computedBonus} readOnly tabIndex={-1} title="Bónus Total" style={{ cursor: "default" }} />
+      <div className="rank-checks">
+        {[0, 1, 2, 3, 4].map(i => (
+          <div key={i} className={`rank-cb ${i < data.ranks ? "filled" : ""}`} onClick={() => onChange({ ...data, ranks: data.ranks === i + 1 ? i : i + 1 })} title={`Rank ${i + 1}`} />
+        ))}
+      </div>
+      <input
+        className="ancestry-input"
+        value={hasBonusText ? bonusText : data.ancestry}
+        onChange={e => { if (!hasBonusText) onChange({ ...data, ancestry: e.target.value }); }}
+        readOnly={hasBonusText}
+        placeholder="Ancestralidade & Bónus"
+        style={hasBonusText ? { color: "#50b060", fontStyle: "italic" } : {}}
+      />
+    </div>
+  );
+}
+
+// ─── MAIN APP ────────────────────────────────────────────────────────────────
+
+export default function PericleSheet() {
+  const [charName, setCharName] = useState("");
+  const [race, setRace] = useState("");
+  const [level, setLevel] = useState("1");
+
+  const RACES = [
+    { name: "Human", bonus: "+10 XP" },
+    { name: "Forest Elf", bonus: "+1 Mov and reduce 1 KN point requirement to learn spells" },
+    { name: "Stone Dwarf", bonus: "+1 AD in MT checks and +3 HP. Heal 2 HP during Recovery and Darkvision" },
+    { name: "Odrim", bonus: "-1 XP cost to learn new spell" },
+    { name: "Everkin", bonus: "+1 AD on all skill checks; +3 to avoid grapple and Darkvision" },
+  ];
+  const raceData = RACES.find(r => r.name === race);
+
+  const [stats, setStats] = useState({
+    armor: "", mt: "", dex: "", kn: "",
+    initiative: "",
+    gold: "", ardence: "", karma: "",
+    xpSpent: ""
+  });
+
+  const updateStat = (key, val) => setStats(s => ({ ...s, [key]: val }));
+
+  const [xpExtra, setXpExtra] = useState(0);
+  const [attrBonus, setAttrBonus] = useState({ mt: 0, dex: 0, kn: 0 });
+  const [currentHp, setCurrentHp] = useState(0);
+  const [exhaustion, setExhaustion] = useState(0);
+
+  // Disciplines (declared early so incr/decr can check for Quick Study)
+  const [disciplines, setDisciplines] = useState([]);
+  const addDiscipline = () => { if (disciplines.length < 10) setDisciplines([...disciplines, { selectedName: "" }]); };
+  const removeDiscipline = (i) => {
+    const old = disciplines[i];
+    if (old.selectedName) {
+      const d = DISCIPLINES.find(x => x.name === old.selectedName);
+      if (d) setXpExtra(x => x + d.xp);
+    }
+    setDisciplines(disciplines.filter((_, idx) => idx !== i));
+  };
+  const setDisciplineName = (i, name) => {
+    const old = disciplines[i];
+    // Refund old discipline XP
+    if (old.selectedName) {
+      const prev = DISCIPLINES.find(x => x.name === old.selectedName);
+      if (prev) setXpExtra(x => x + prev.xp);
+    }
+    // Charge new discipline XP
+    if (name) {
+      const next = DISCIPLINES.find(x => x.name === name);
+      if (next) setXpExtra(x => x - next.xp);
+    }
+    const arr = [...disciplines];
+    arr[i] = { selectedName: name, choice: "" };
+    setDisciplines(arr);
+  };
+  const setDisciplineChoice = (i, choice) => {
+    const arr = [...disciplines];
+    arr[i] = { ...arr[i], choice };
+    setDisciplines(arr);
+  };
+
+  const hasQuickStudy = disciplines.some(d => d.selectedName === "Quick Study");
+  const hasAcrobaticsI = disciplines.some(d => d.selectedName === "Acrobatics I");
+  const hasAcrobaticsII = disciplines.some(d => d.selectedName === "Acrobatics II");
+  const hasArmorProfI = disciplines.some(d => d.selectedName === "Armor Proficiency I");
+  const hasArmorProfII = disciplines.some(d => d.selectedName === "Armor Proficiency II");
+  const hasRunning = disciplines.some(d => d.selectedName === "Running");
+  const hasTactics = disciplines.some(d => d.selectedName === "Tactics");
+  const hasGrapplerI = disciplines.some(d => d.selectedName === "Grappler I");
+  const hasGrapplerII = disciplines.some(d => d.selectedName === "Grappler II");
+  const hasGrapplerIII = disciplines.some(d => d.selectedName === "Grappler III");
+  const hasGritI = disciplines.some(d => d.selectedName === "Grit I");
+  const hasGritII = disciplines.some(d => d.selectedName === "Grit II");
+  const hasGritIII = disciplines.some(d => d.selectedName === "Grit III");
+
+  const proficientWeapons = new Set(
+    disciplines
+      .map(d => d.selectedName)
+      .filter(n => n && n.startsWith("Special Weapon Proficiency: "))
+      .map(n => n.replace("Special Weapon Proficiency: ", ""))
+  );
+
+  const incrAttr = (attr) => {
+    setAttrBonus(b => ({ ...b, [attr]: b[attr] + 1 }));
+    if (attr === "mt" || attr === "dex") {
+      setXpExtra(x => x - (hasQuickStudy ? 7 : 8));
+    } else if (attr === "kn") {
+      setXpExtra(x => x - (hasQuickStudy ? 2 : 3));
+    }
+  };
+  const decrAttr = (attr) => {
+    setAttrBonus(b => ({ ...b, [attr]: b[attr] - 1 }));
+    if (attr === "mt" || attr === "dex") {
+      setXpExtra(x => x + (hasQuickStudy ? 7 : 8));
+    } else if (attr === "kn") {
+      setXpExtra(x => x + (hasQuickStudy ? 2 : 3));
+    }
+  };
+
+  // Initial 5 points (only from typed input, NOT from +/- buttons)
+  const mtInit = parseInt(stats.mt, 10) || 0;
+  const dexInit = parseInt(stats.dex, 10) || 0;
+  const knInit = parseInt(stats.kn, 10) || 0;
+  const pointsUsed = mtInit + dexInit + knInit;
+  const pointsRemaining = 5 - pointsUsed;
+
+  // Totals (initial + bonus from buttons)
+  const mtTotal = mtInit + attrBonus.mt;
+  const dexTotal = dexInit + attrBonus.dex;
+  const knTotal = knInit + attrBonus.kn;
+
+  // XP total only uses initial KN (not bonus) + Human ancestry bonus
+  const ancestryXP = race === "Human" ? 10 : 0;
+  const baseXP = 20 + (5 * knInit) + ancestryXP;
+
+  // Spells
+  const [spells, setSpells] = useState([]);
+  const addSpell = () => { if (spells.length < 10) setSpells([...spells, { selectedName: "" }]); };
+  const removeSpell = (i) => {
+    const old = spells[i];
+    if (old.selectedName) {
+      const s = SPELLS.find(x => x.name === old.selectedName);
+      if (s) setXpExtra(x => x + s.xp);
+    }
+    setSpells(spells.filter((_, idx) => idx !== i));
+  };
+  const setSpellName = (i, name) => {
+    const old = spells[i];
+    if (old.selectedName) {
+      const prev = SPELLS.find(x => x.name === old.selectedName);
+      if (prev) setXpExtra(x => x + prev.xp);
+    }
+    if (name) {
+      const next = SPELLS.find(x => x.name === name);
+      if (next) setXpExtra(x => x - next.xp);
+    }
+    const arr = [...spells];
+    arr[i] = { selectedName: name };
+    setSpells(arr);
+  };
+
+  // Odrim: -1 XP cost per active spell (reactive)
+  const activeSpellCount = spells.filter(s => s.selectedName).length;
+  const odrimDiscount = race === "Odrim" ? activeSpellCount : 0;
+  const xpTotal = baseXP + xpExtra + odrimDiscount;
+
+  // Weapons
+  const [weapons, setWeapons] = useState([]);
+  const addWeapon = () => { if (weapons.length < 6) setWeapons([...weapons, { selectedName: "", equip: "" }]); };
+  const removeWeapon = (i) => setWeapons(weapons.filter((_, idx) => idx !== i));
+  const setWeaponName = (i, name) => {
+    const next = [...weapons];
+    next[i] = { selectedName: name, equip: "" };
+    setWeapons(next);
+  };
+  const cycleEquip = (i) => {
+    const slot = weapons[i];
+    const data = WEAPONS.find(w => w.name === slot.selectedName);
+    if (!data) return;
+    const next = [...weapons];
+    if (data.twoHanded) {
+      // Two-handed: toggle between "" and "both"
+      if (slot.equip === "both") {
+        next[i] = { ...slot, equip: "" };
+      } else {
+        // Unequip anything in hand1 or hand2
+        next.forEach((s, j) => { if (j !== i && (s.equip === "hand1" || s.equip === "hand2" || s.equip === "both")) next[j] = { ...s, equip: "" }; });
+        next[i] = { ...slot, equip: "both" };
+      }
+    } else {
+      // One-handed: cycle "" → hand1 → hand2 → ""
+      const hand1Taken = next.some((s, j) => j !== i && (s.equip === "hand1" || s.equip === "both"));
+      const hand2Taken = next.some((s, j) => j !== i && (s.equip === "hand2" || s.equip === "both"));
+      if (slot.equip === "") {
+        if (!hand1Taken) {
+          next[i] = { ...slot, equip: "hand1" };
+        } else if (!hand2Taken) {
+          next[i] = { ...slot, equip: "hand2" };
+        }
+      } else if (slot.equip === "hand1") {
+        if (!hand2Taken) {
+          next[i] = { ...slot, equip: "hand2" };
+        } else {
+          next[i] = { ...slot, equip: "" };
+        }
+      } else {
+        next[i] = { ...slot, equip: "" };
+      }
+    }
+    setWeapons(next);
+  };
+
+  // Armor/Shield
+  const [armorSlots, setArmorSlots] = useState([]);
+  const addArmorSlot = () => { if (armorSlots.length < 2) setArmorSlots([...armorSlots, { selectedName: "" }]); };
+  const removeArmorSlot = (i) => setArmorSlots(armorSlots.filter((_, idx) => idx !== i));
+  const setArmorSlotName = (i, name) => {
+    const next = [...armorSlots];
+    next[i] = { selectedName: name };
+    setArmorSlots(next);
+  };
+
+  // Skills
+  const [skills, setSkills] = useState(
+    Object.fromEntries(SKILLS_LIST.map(s => [s, { bonus: "", ranks: 0, ancestry: "" }]))
+  );
+  const updateSkill = (name, data) => {
+    const oldRanks = skills[name].ranks;
+    const newRanks = data.ranks;
+    if (newRanks > oldRanks) {
+      setXpExtra(x => x - 2 * (newRanks - oldRanks));
+    } else if (newRanks < oldRanks) {
+      setXpExtra(x => x + 2 * (oldRanks - newRanks));
+    }
+    setSkills(s => ({ ...s, [name]: data }));
+  };
+
+  // Items
+  const [items, setItems] = useState([]);
+  const addCustomItem = () => { if (items.length < 20) setItems([...items, { name: "", description: "", value: "", custom: true }]); };
+  const addStandardItem = (name) => {
+    if (!name || items.length >= 20) return;
+    const si = STANDARD_ITEMS.find(x => x.name === name);
+    if (si) setItems([...items, { ...si, custom: false }]);
+  };
+  const removeItem = (i) => setItems(items.filter((_, idx) => idx !== i));
+  const updateItem = (i, field, val) => {
+    const next = [...items];
+    next[i] = { ...next[i], [field]: val };
+    setItems(next);
+  };
+
+  // Collapse state
+  const [collapsed, setCollapsed] = useState({ glossary: true });
+  const [glossarySelected, setGlossarySelected] = useState("");
+  const [theme, setTheme] = useState("dark");
+  React.useEffect(() => { document.documentElement.setAttribute("data-theme", theme); }, [theme]);
+  const toggle = (key) => setCollapsed(c => ({ ...c, [key]: !c[key] }));
+
+  // Compute Base AD: DEX minus total AD Pen from selected armor/shield
+  const totalAdPen = armorSlots.reduce((sum, slot) => {
+    const data = ARMORS.find(a => a.name === slot.selectedName);
+    if (!data) return sum;
+    let pen = Math.abs(data.adPen);
+    if (hasArmorProfII && pen > 0) pen = Math.max(0, pen - 1);
+    return sum + pen;
+  }, 0);
+  const totalMvPen = armorSlots.reduce((sum, slot) => {
+    const data = ARMORS.find(a => a.name === slot.selectedName);
+    if (!data) return sum;
+    const n = parseInt(data.mvPen, 10);
+    if (isNaN(n)) return sum;
+    let pen = Math.abs(n);
+    if (hasArmorProfI && (data.name === "Plate Armor" || data.name === "Gambeson Armor (Padded Cloth)")) pen = Math.max(0, pen - 1);
+    return sum + pen;
+  }, 0);
+  const dexRaw = dexTotal;
+  const baseAD = dexInit === 0 && attrBonus.dex === 0 && stats.dex === "" ? "—" : Math.max(0, dexRaw - totalAdPen);
+  const baseADNum = typeof baseAD === "number" ? baseAD : 0;
+
+  // Computed stats (read-only)
+  const gritBonus = hasGritIII ? 3 : hasGritII ? 2 : hasGritI ? 1 : 0;
+  const gritLabel = hasGritIII ? "Grit III" : hasGritII ? "Grit II" : hasGritI ? "Grit I" : "";
+  const armorFromEquip = armorSlots.reduce((sum, slot) => {
+    const data = ARMORS.find(a => a.name === slot.selectedName);
+    return sum + (data ? data.armor : 0);
+  }, 0);
+  const computedArmor = armorFromEquip + gritBonus;
+  const elfMov = race === "Forest Elf" ? 1 : 0;
+  const runningMov = hasRunning ? 1 : 0;
+  const computedMovement = 5 + elfMov + runningMov - totalMvPen;
+  const computedHP = 10 + mtTotal + (race === "Stone Dwarf" ? 3 : 0);
+  const grapplerBonus = hasGrapplerIII ? 3 : hasGrapplerII ? 2 : hasGrapplerI ? 1 : 0;
+  const grapplerLabel = hasGrapplerIII ? "Grappler III" : hasGrapplerII ? "Grappler II" : hasGrapplerI ? "Grappler I" : "";
+  const computedGrapple = Math.floor(mtTotal / 2) + baseADNum - 2 + grapplerBonus;
+  const computedAvoidGrapple = computedGrapple + (race === "Everkin" ? 3 : 0);
+  const computedInitiative = hasTactics ? 1 : 0;
+
+  const computedXpSpent = (() => {
+    let s = 0;
+    for (const d of disciplines) { if (d.selectedName) { const f = DISCIPLINES.find(x => x.name === d.selectedName); if (f) s += f.xp; } }
+    for (const sp of spells) { if (sp.selectedName) { const f = SPELLS.find(x => x.name === sp.selectedName); if (f) s += f.xp; if (race === "Odrim") s -= 1; } }
+    for (const sk of Object.values(skills)) { s += sk.ranks * 2; }
+    s += (attrBonus.mt + attrBonus.dex) * (hasQuickStudy ? 7 : 8);
+    s += attrBonus.kn * (hasQuickStudy ? 2 : 3);
+    return s;
+  })();
+
+  // ── Save / Load / Export ──
+  const fileInputRef = useRef(null);
+
+  const getSheetData = () => ({
+    version: 1,
+    charName, race, level, stats, xpExtra, attrBonus, currentHp, exhaustion,
+    disciplines, spells, weapons, armorSlots,
+    skills, items,
+  });
+
+  const handleSave = () => {
+    const data = JSON.stringify(getSheetData(), null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (charName || "pericle-character").replace(/[^a-zA-Z0-9_-]/g, "_") + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleLoad = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const d = JSON.parse(ev.target.result);
+        if (d.charName !== undefined) setCharName(d.charName);
+        if (d.race !== undefined) setRace(d.race);
+        if (d.level !== undefined) setLevel(d.level);
+        if (d.stats) setStats(d.stats);
+        if (d.xpExtra !== undefined) setXpExtra(d.xpExtra);
+        if (d.attrBonus) setAttrBonus(d.attrBonus);
+        if (d.currentHp !== undefined) setCurrentHp(d.currentHp);
+        if (d.exhaustion !== undefined) setExhaustion(d.exhaustion);
+        if (d.disciplines) setDisciplines(d.disciplines);
+        if (d.spells) setSpells(d.spells);
+        if (d.weapons) setWeapons(d.weapons);
+        if (d.armorSlots) setArmorSlots(d.armorSlots);
+        if (d.skills) setSkills(d.skills);
+        if (d.items) setItems(d.items);
+        setCollapsed({});
+      } catch {
+        alert("Invalid file. Please select a valid Pericle character sheet (.json).");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleExportPDF = () => {
+    // Gather all data for the PDF
+    const mtT = mtTotal, dexT = dexTotal, knT = knTotal;
+    const activeDisc = disciplines.filter(d => d.selectedName).map(d => {
+      const dd = DISCIPLINES.find(x => x.name === d.selectedName);
+      return dd ? { ...dd, choice: d.choice } : null;
+    }).filter(Boolean);
+    const activeSpells = spells.filter(s => s.selectedName).map(s => SPELLS.find(x => x.name === s.selectedName)).filter(Boolean);
+    const activeWeapons = weapons.filter(w => w.selectedName).map(w => {
+      const wd = WEAPONS.find(x => x.name === w.selectedName);
+      return wd ? { ...wd, equip: w.equip } : null;
+    }).filter(Boolean);
+    const activeArmor = armorSlots.filter(a => a.selectedName).map(a => ARMORS.find(x => x.name === a.selectedName)).filter(Boolean);
+    const activeItems = items.filter(it => it.name);
+
+    const skillRows = SKILLS_LIST.map(s => {
+      const sk = skills[s];
+      let extra = 0;
+      const bonuses = [];
+      if (race === "Everkin") { extra += 1; bonuses.push("+1 Everkin"); }
+      if (s === "Athletics" && hasAcrobaticsII) { extra += 2; bonuses.push("+2 Acrobatics II"); }
+      else if (s === "Athletics" && hasAcrobaticsI) { extra += 1; bonuses.push("+1 Acrobatics I"); }
+      return `<tr><td style="font-weight:600">${s}</td><td style="text-align:center">${sk.ranks + extra}</td><td style="text-align:center">${"●".repeat(sk.ranks)}${"○".repeat(5 - sk.ranks)}</td><td style="color:#2a7a2a;font-style:italic">${bonuses.join(", ") || sk.ancestry || ""}</td></tr>`;
+    }).join("");
+
+    const weaponRows = activeWeapons.map(w => {
+      const eqLabel = w.equip === "hand1" ? "1ª" : w.equip === "hand2" ? "2ª" : w.equip === "both" ? "1+2" : "—";
+      const cb = (v) => v ? "●" : "○";
+      return `<tr><td style="color:${w.equip ? '#b8860b' : '#999'};font-weight:${w.equip ? 700 : 400}">${eqLabel}</td><td style="color:${w.mt > mtT ? '#d44040' : '#555'}">${w.mt}</td><td>${w.name}</td><td>${w.cls}</td><td>${w.ability || "—"}</td><td>${w.critical || "—"}</td><td style="color:#c00;font-weight:600">${w.damage}</td><td>${cb(w.hex1)}</td><td>${cb(w.hex2)}</td><td>${cb(w.hex3)}</td><td>${cb(w.ranged)}</td><td>${cb(w.thrown)}</td><td>${cb(w.grapple)}</td><td>${cb(w.reload)}</td><td>${cb(w.twoHanded)}</td><td>${w.val ?? "—"}</td></tr>`;
+    }).join("");
+
+    const discRows = activeDisc.map(d => {
+      let desc = d.description;
+      if (d.name === "Weapon Mastery" && d.choice) desc = desc.replace(d.choice, `<b style="color:#b8860b">${d.choice}</b>`);
+      return `<tr><td style="text-align:center;color:#7c5cbf">${d.kn}</td><td style="font-weight:600">${d.name}</td><td style="font-size:10px">${desc}</td><td style="color:#c00;font-size:10px">${d.requisite || "—"}</td><td style="text-align:center">${d.xp}</td></tr>`;
+    }).join("");
+
+    const spellRows = activeSpells.map(s => `<tr><td style="text-align:center;color:#7c5cbf">${s.kn}</td><td style="font-weight:600">${s.name}</td><td>${s.school}</td><td>${s.cat}</td><td>${s.exhaustion}</td><td style="font-size:10px">${s.description}${s.dmgTable ? `<table style="margin-top:4px;border-collapse:collapse;font-size:9px"><tr style="border-bottom:1px solid #ccc"><th style="padding:1px 4px;text-align:left">MT</th><th style="padding:1px 4px;text-align:left">Dmg</th></tr>${s.dmgTable.map(r => `<tr><td style="padding:1px 4px">${r[0]}</td><td style="padding:1px 4px;color:#c00;font-weight:600">${r[1]}</td></tr>`).join("")}</table>` : ""}</td><td>${s.duration}</td><td style="text-align:center">${s.xp}</td></tr>`).join("");
+
+    const armorRows = activeArmor.map(a => `<tr><td style="font-weight:600">${a.name}</td><td style="text-align:center">${a.armor}</td><td style="text-align:center">${a.adPen}</td><td style="text-align:center">${a.mvPen}</td><td style="text-align:center">${a.val ?? "—"}</td></tr>`).join("");
+
+    const itemRows = activeItems.map(it => `<tr><td style="font-weight:600">${it.name}</td><td style="font-size:10px">${it.description || ""}</td><td style="text-align:center">${it.value || ""}</td></tr>`).join("");
+
+    const raceData = RACES.find(r => r.name === race);
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pericle - ${charName || "Character Sheet"}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Crimson Pro',serif;font-size:12px;color:#222;padding:20px;max-width:900px;margin:0 auto}
+h1{font-family:'Cinzel',serif;font-size:22px;text-align:center;margin-bottom:2px;color:#333}
+h2{font-family:'Cinzel',serif;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#7c5cbf;border-bottom:1px solid #ccc;padding-bottom:3px;margin:14px 0 6px}
+.meta{text-align:center;color:#666;margin-bottom:12px;font-size:11px}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin-bottom:8px}
+.stat{background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:6px;text-align:center}
+.stat-label{font-family:'Cinzel',serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#666;margin-bottom:2px}
+.stat-val{font-size:18px;font-weight:700;color:#333}
+.stat-hint{font-size:9px;color:#2a7a2a;font-style:italic;margin-top:2px}
+table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:11px}
+th{font-family:'Cinzel',serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#555;border-bottom:2px solid #ccc;padding:3px 4px;text-align:left}
+td{border-bottom:1px solid #eee;padding:3px 4px;vertical-align:top}
+.xp-bar{text-align:center;margin:6px 0 12px;font-size:13px}
+.pts{display:inline-block;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:3px 10px;font-size:11px;margin-top:4px}
+@media print{body{padding:10px}h2{margin:10px 0 4px}}
+</style></head><body>
+<h1>Pericle</h1>
+<div class="meta"><b>${charName || "Herói Sem Nome"}</b>${race ? " — " + race + (raceData ? " (" + raceData.bonus + ")" : "") : ""}${level ? " — Nível " + level : ""}</div>
+
+<h2>Atributos & Estatísticas</h2>
+<div class="stats">
+<div class="stat"><div class="stat-label">MT</div><div class="stat-val">${mtT}</div><div class="stat-hint">Inic ${mtInit} + Bónus ${attrBonus.mt}</div></div>
+<div class="stat"><div class="stat-label">DEX</div><div class="stat-val">${dexT}</div><div class="stat-hint">Inic ${dexInit} + Bónus ${attrBonus.dex}</div></div>
+<div class="stat"><div class="stat-label">Base AD</div><div class="stat-val">${baseAD}</div><div class="stat-hint">Dex +${dexT}, Pen. Armadura ${totalAdPen === 0 ? "0" : "-" + totalAdPen}${hasArmorProfII ? " | Prof II" : ""}</div></div>
+<div class="stat"><div class="stat-label">KN</div><div class="stat-val">${knT}</div><div class="stat-hint">Inic ${knInit} + Bónus ${attrBonus.kn}</div></div>
+<div class="stat"><div class="stat-label">HP</div><div class="stat-val">${computedHP}</div><div class="stat-hint">${race === "Stone Dwarf" ? "10+MT+3(Dwarf)" : "10+MT"}</div></div>
+<div class="stat"><div class="stat-label">Armadura</div><div class="stat-val">${computedArmor}</div><div class="stat-hint">Equip. ${armorFromEquip}${gritLabel ? " +" + gritBonus + "(" + gritLabel + ")" : ""}</div></div>
+<div class="stat"><div class="stat-label">Iniciativa</div><div class="stat-val">${computedInitiative}</div><div class="stat-hint">${hasTactics ? "+1 (Tactics)" : ""}</div></div>
+<div class="stat"><div class="stat-label">Movimento</div><div class="stat-val">${computedMovement}</div><div class="stat-hint">5${elfMov ? " +1(Elf)" : ""}${runningMov ? " +1(Run)" : ""}${totalMvPen ? " -" + totalMvPen + "(Armadura)" : ""}</div></div>
+<div class="stat"><div class="stat-label">Grapple</div><div class="stat-val">${computedGrapple}</div><div class="stat-hint">${grapplerLabel ? grapplerLabel + " (+" + grapplerBonus + ")" : "⌊MT/2⌋+AD-2"}</div></div>
+<div class="stat"><div class="stat-label">Evitar Grapple</div><div class="stat-val">${computedAvoidGrapple}</div><div class="stat-hint">${race === "Everkin" ? "Grapple+3(Everkin)" : "= Grapple"}</div></div>
+<div class="stat"><div class="stat-label">HP Atual</div><div class="stat-val">${currentHp}</div></div>
+<div class="stat"><div class="stat-label">Exaustão</div><div class="stat-val">${exhaustion}</div></div>
+<div class="stat"><div class="stat-label">Ouro</div><div class="stat-val">${stats.gold || 0}</div></div>
+<div class="stat"><div class="stat-label">Ardência</div><div class="stat-val">${stats.ardence || "—"}</div></div>
+<div class="stat"><div class="stat-label">Karma</div><div class="stat-val">${stats.karma || "—"}</div></div>
+</div>
+<div class="xp-bar"><b>XP:</b> ${computedXpSpent} gasto / ${xpTotal} total</div>
+
+${activeArmor.length ? `<h2>Armadura & Escudo</h2><table><thead><tr><th>Nome</th><th>Armadura</th><th>Pen. AD</th><th>Pen. Mov</th><th>Val.</th></tr></thead><tbody>${armorRows}</tbody></table>` : ""}
+
+${activeWeapons.length ? `<h2>Armas</h2><table><thead><tr><th>Eq</th><th>MT</th><th>Nome</th><th>Classe</th><th>Habilidade</th><th>Crit</th><th>Dano</th><th>1H</th><th>2H</th><th>3H</th><th>Dist</th><th>Arr</th><th>Grp</th><th>Rec</th><th>2Mãos</th><th>Val.</th></tr></thead><tbody>${weaponRows}</tbody></table>` : ""}
+
+<h2>Perícias</h2><table><thead><tr><th>Perícia</th><th>Bónus</th><th>Ranks</th><th>Ancestralidade & Bónus</th></tr></thead><tbody>${skillRows}</tbody></table>
+
+${activeDisc.length ? `<h2>Disciplinas</h2><table><thead><tr><th>KN</th><th>Nome</th><th>Descrição</th><th>Requisito</th><th>XP</th></tr></thead><tbody>${discRows}</tbody></table>` : ""}
+
+${activeSpells.length ? `<h2>Feitiços</h2><table><thead><tr><th>KN</th><th>Nome</th><th>Escola</th><th>Cat</th><th>Exaust</th><th>Descrição</th><th>Dur</th><th>XP</th></tr></thead><tbody>${spellRows}</tbody></table>` : ""}
+
+${activeItems.length ? `<h2>Itens</h2><table><thead><tr><th>Nome</th><th>Descrição</th><th>Valor</th></tr></thead><tbody>${itemRows}</tbody></table>` : ""}
+
+</body></html>`;
+
+    // Use hidden iframe to print (works in sandboxed environments)
+    let printFrame = document.getElementById("pericle-print-frame");
+    if (!printFrame) {
+      printFrame = document.createElement("iframe");
+      printFrame.id = "pericle-print-frame";
+      printFrame.style.cssText = "position:fixed;width:0;height:0;border:none;left:-9999px;top:-9999px;";
+      document.body.appendChild(printFrame);
+    }
+    const fd = printFrame.contentDocument || printFrame.contentWindow.document;
+    fd.open();
+    fd.write(html);
+    fd.close();
+    // Wait for fonts to load then print
+    setTimeout(() => {
+      try {
+        printFrame.contentWindow.focus();
+        printFrame.contentWindow.print();
+      } catch(e) {
+        // Fallback: open as blob download
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${charName || "pericle-sheet"}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    }, 600);
+  };
+
+  return (
+    <>
+      <style>{CSS}</style>
+      <div className="sheet-container" data-theme={theme}>
+        {/* Header */}
+        <div className="sheet-header">
+          <div className="sheet-title">Pericle</div>
+          <div className="sheet-subtitle">Ficha de Personagem</div>
+          <div className="action-bar">
+            <button className="action-btn" onClick={handleSave} title="Salvar personagem como arquivo JSON">
+              <span className="btn-icon">💾</span> Salvar
+            </button>
+            <button className="action-btn" onClick={() => fileInputRef.current?.click()} title="Carregar personagem de arquivo JSON">
+              <span className="btn-icon">📂</span> Carregar
+            </button>
+            <input ref={fileInputRef} className="action-btn-file" type="file" accept=".json" onChange={handleLoad} />
+            <button className="action-btn" onClick={handleExportPDF} title="Exportar ficha como PDF (impressão)">
+              <span className="btn-icon">📄</span> Exportar PDF
+            </button>
+            <button className="action-btn" onClick={() => setTheme(t => t === "dark" ? "light" : "dark")} title="Alternar tema claro/escuro">
+              <span className="btn-icon">{theme === "dark" ? "☀️" : "🌙"}</span> {theme === "dark" ? "Claro" : "Escuro"}
+            </button>
+          </div>
+        </div>
+
+        {/* Name, Ancestry & Level */}
+        <div className="name-row">
+          <input className="name-input" value={charName} onChange={e => setCharName(e.target.value)} placeholder="Nome do Personagem" />
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <select className="race-select" value={race} onChange={e => setRace(e.target.value)}>
+              <option value="">— Ancestralidade —</option>
+              {RACES.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+            </select>
+            {raceData && <div className="race-bonus">{raceData.bonus}</div>}
+          </div>
+          <div className="level-box">
+            <div className="stat-label">Nível</div>
+            <input
+              className="level-input"
+              value={level}
+              onChange={e => { const v = e.target.value.replace(/[^0-9]/g, ''); setLevel(v); }}
+              inputMode="numeric"
+            />
+          </div>
+        </div>
+
+        {/* Core Stats */}
+        <div className="panel">
+          <div className="section-title">Atributos & Estatísticas</div>
+          <div className="stats-grid">
+            <AttributeBox label="MT" initValue={stats.mt} onInitChange={v => updateStat("mt", v)} bonus={attrBonus.mt} onIncr={() => incrAttr("mt")} onDecr={() => decrAttr("mt")} hint="8xp para subir" />
+            <AttributeBox label="DEX" initValue={stats.dex} onInitChange={v => updateStat("dex", v)} bonus={attrBonus.dex} onIncr={() => incrAttr("dex")} onDecr={() => decrAttr("dex")} hint="8xp para subir" />
+            <ReadOnlyStatBox label="Base AD" value={baseAD} hint={baseAD !== "—" ? `Dex +${dexTotal}, Pen. Armadura ${totalAdPen === 0 ? "0" : "-" + totalAdPen}${hasArmorProfII ? " | Armor Prof. II ativa" : ""}` : ""} />
+            <AttributeBox label="KN" initValue={stats.kn} onInitChange={v => updateStat("kn", v)} bonus={attrBonus.kn} onIncr={() => incrAttr("kn")} onDecr={() => decrAttr("kn")} hint="3xp para subir" />
+            <ReadOnlyStatBox label="HP" value={computedHP} hint={race === "Stone Dwarf" ? "10 + MT + 3 (Dwarf)" : "10 + MT"} />
+            <ReadOnlyStatBox label="Armadura" value={computedArmor} hint={`Equip ${armorFromEquip}${gritLabel ? ` +${gritBonus}(${gritLabel})` : ""}`} />
+            <ReadOnlyStatBox label="Iniciativa" value={computedInitiative} hint={hasTactics ? "+1 (Tactics)" : ""} />
+            <ReadOnlyStatBox label="Movimento" value={computedMovement} hint={`5${elfMov ? " +1(Elf)" : ""}${runningMov ? " +1(Running)" : ""}${totalMvPen ? ` -${totalMvPen}(Armadura)` : ""}${hasArmorProfI ? " | Armor Prof. I ativa" : ""}`} />
+            <ReadOnlyStatBox label="Grapple" value={computedGrapple} hint={`⌊MT/2⌋ + Base AD − 2${grapplerLabel ? ` | ${grapplerLabel} ativa (+${grapplerBonus})` : ""}`} />
+            <ReadOnlyStatBox label="Evitar Grapple" value={computedAvoidGrapple} hint={race === "Everkin" ? "Grapple + 3 (Everkin)" : "= Grapple"} />
+            <div className="stat-box">
+              <span className="stat-label">HP Atual</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <button className="attr-btn" onClick={() => setCurrentHp(v => v - 1)}>−</button>
+                <input className="stat-input" type="number" value={currentHp} onChange={e => setCurrentHp(parseInt(e.target.value, 10) || 0)} style={{ textAlign: "center" }} />
+                <button className="attr-btn" onClick={() => setCurrentHp(v => v + 1)}>+</button>
+              </div>
+            </div>
+            <div className="stat-box">
+              <span className="stat-label">Exaustão</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <button className="attr-btn" onClick={() => { setExhaustion(v => Math.max(0, v - 1)); setCurrentHp(v => v + 1); }}>−</button>
+                <input className="stat-input" type="number" value={exhaustion} onChange={e => setExhaustion(Math.max(0, parseInt(e.target.value, 10) || 0))} style={{ textAlign: "center" }} />
+                <button className="attr-btn" onClick={() => { setExhaustion(v => v + 1); setCurrentHp(v => v - 1); }}>+</button>
+              </div>
+            </div>
+            <StatBox label="Ouro" value={stats.gold} onChange={v => updateStat("gold", v)} numeric />
+            <StatBox label="Ardência" value={stats.ardence} onChange={v => updateStat("ardence", v)} />
+            <StatBox label="Karma" value={stats.karma} onChange={v => updateStat("karma", v)} />
+          </div>
+          <div className="points-tracker">
+            <span className="points-label">Pontos de Atributo Iniciais</span>
+            <span className={`points-value ${pointsRemaining > 0 ? "points-ok" : pointsRemaining < 0 ? "points-over" : "points-zero"}`}>
+              {pointsRemaining} / 5
+            </span>
+            <span className="xp-sep" style={{ margin: "0 8px" }}>|</span>
+            <span className="stat-label" style={{ marginBottom: 0 }}>XP</span>
+            <div className="xp-row" style={{ marginLeft: 4 }}>
+              <div className="xp-total-display" style={{ color: computedXpSpent > xpTotal ? "var(--red)" : "var(--accent)" }} title="XP Gasto">{computedXpSpent}</div>
+              <span className="xp-sep">/</span>
+              <button className="xp-btn" onClick={() => setXpExtra(x => x - 1)} title="Remover 1 XP">−</button>
+              <div className="xp-total-display" title={`Base: 20 + 5×KN(${knInit})${ancestryXP ? " + 10(Human)" : ""}${odrimDiscount ? ` + ${odrimDiscount}(Odrim)` : ""} = ${baseXP + odrimDiscount}  |  Extra: ${xpExtra}`}>{xpTotal}</div>
+              <button className="xp-btn" onClick={() => setXpExtra(x => x + 1)} title="Adicionar 1 XP">+</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Armor / Shield */}
+        <div className="panel">
+          <div className="section-title">
+            Armadura & Escudo
+            <button className="collapse-toggle" onClick={() => toggle("armor")}>{collapsed.armor ? "▸" : "▾"}</button>
+          </div>
+          {!collapsed.armor && (
+            <>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Nome</th><th>Armadura</th><th>Pen. AD</th><th>Pen. Mov</th><th>Val.</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {armorSlots.map((slot, i) => {
+                      const data = ARMORS.find(a => a.name === slot.selectedName);
+                      return (
+                        <tr key={i}>
+                          <td>
+                            <select className="select-cell" value={slot.selectedName} onChange={e => setArmorSlotName(i, e.target.value)}>
+                              <option value="">— Selecionar —</option>
+                              {ARMORS.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
+                            </select>
+                          </td>
+                          <td className="ro-cell">{data ? data.armor : "—"}</td>
+                          <td className="ro-cell">{data ? data.adPen : "—"}</td>
+                          <td className="ro-cell">{data ? data.mvPen : "—"}</td>
+                          <td className="ro-cell">{data ? data.val : "—"}</td>
+                          <td><button className="remove-btn" onClick={() => removeArmorSlot(i)}>✕</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {armorSlots.length < 2 && <button className="add-btn" onClick={addArmorSlot}>+ Adicionar Armadura/Escudo</button>}
+            </>
+          )}
+        </div>
+
+        {/* Weapons */}
+        <div className="panel">
+          <div className="section-title">
+            Armas
+            <button className="collapse-toggle" onClick={() => toggle("weapons")}>{collapsed.weapons ? "▸" : "▾"}</button>
+          </div>
+          {!collapsed.weapons && (
+            <>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Equipar</th><th>MT</th><th>Nome</th><th>Classe</th><th>Habilidade</th><th>Crit</th><th>Dano</th>
+                      <th title="1-Hex">1H</th><th title="2-Hex">2H</th><th title="3-Hex">3H</th>
+                      <th>Dist</th><th>Arr</th><th>Grp</th><th>Rec</th><th>2Mãos</th><th>Val.</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weapons.map((slot, i) => {
+                      const data = WEAPONS.find(w => w.name === slot.selectedName);
+                      const isActive = slot.equip === "hand1" || slot.equip === "hand2" || slot.equip === "both";
+                      const equipLabel = slot.equip === "hand1" ? "1ª" : slot.equip === "hand2" ? "2ª" : slot.equip === "both" ? "1+2" : "—";
+                      return (
+                        <tr key={i} style={isActive ? { background: "rgba(169,124,240,0.1)" } : {}}>
+                          <td>
+                            <button
+                              className="equip-btn"
+                              onClick={() => cycleEquip(i)}
+                              disabled={!data}
+                              title={isActive ? "Clique para desequipar" : data?.twoHanded ? "Clique para equipar (ambas mãos)" : "Clique para equipar"}
+                              style={{ color: isActive ? "var(--gold)" : "var(--text-dim)", fontWeight: isActive ? 700 : 400, cursor: data ? "pointer" : "default", background: "transparent", border: "1px solid " + (isActive ? "var(--gold)" : "var(--border)"), borderRadius: 4, padding: "2px 6px", fontSize: 11, fontFamily: "'Cinzel', serif", minWidth: 32 }}
+                            >{equipLabel}</button>
+                          </td>
+                          <td className="kn-cell" style={data && data.mt > mtTotal ? { color: proficientWeapons.has(data.name) ? "var(--gold)" : "var(--red)" } : {}}>{data ? data.mt : "—"}</td>
+                          <td>
+                            <select className="select-cell" value={slot.selectedName} onChange={e => setWeaponName(i, e.target.value)}>
+                              <option value="">— Selecionar —</option>
+                              {WEAPONS.map((w, wi) => <option key={`${w.name}-${wi}`} value={w.name}>{w.name} ({w.cls})</option>)}
+                            </select>
+                          </td>
+                          <td className="ro-cell">{data ? data.cls : "—"}</td>
+                          <td className="ro-cell">{data ? data.ability || "—" : "—"}</td>
+                          <td className="ro-cell">{data ? data.critical || "—" : "—"}</td>
+                          <td className="dmg-cell">{data ? data.damage : "—"}</td>
+                          <td><CheckDot on={data?.hex1} /></td>
+                          <td><CheckDot on={data?.hex2} /></td>
+                          <td><CheckDot on={data?.hex3} /></td>
+                          <td><CheckDot on={data?.ranged} /></td>
+                          <td><CheckDot on={data?.thrown} /></td>
+                          <td><CheckDot on={data?.grapple} /></td>
+                          <td><CheckDot on={data?.reload} /></td>
+                          <td><CheckDot on={data?.twoHanded} /></td>
+                          <td className="ro-cell">{data ? data.val : "—"}</td>
+                          <td><button className="remove-btn" onClick={() => removeWeapon(i)}>✕</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {weapons.length < 6 && <button className="add-btn" onClick={addWeapon}>+ Adicionar Arma</button>}
+            </>
+          )}
+        </div>
+
+        {/* Skills */}
+        <div className="panel">
+          <div className="section-title">Perícias</div>
+          <div className="skills-grid">
+            {SKILLS_LIST.map(s => {
+              const bonuses = [];
+              let extraBonus = 0;
+              if (race === "Everkin") { bonuses.push("+1 - Everkin"); extraBonus += 1; }
+              if (s === "Athletics" && hasAcrobaticsII) { bonuses.push("+2 - Acrobatics II"); extraBonus += 2; }
+              else if (s === "Athletics" && hasAcrobaticsI) { bonuses.push("+1 - Acrobatics I"); extraBonus += 1; }
+              const bonusText = bonuses.length > 0 ? bonuses.join(", ") : "";
+              return <SkillRow key={s} skill={s} data={skills[s]} onChange={d => updateSkill(s, d)} bonusText={bonusText} extraBonus={extraBonus} />;
+            })}
+          </div>
+          <div className="stat-hint" style={{ textAlign: "center", marginTop: 8, fontSize: 11 }}>Aumentar uma Perícia em 1 ponto custa 2XP</div>
+        </div>
+
+        {/* Disciplines */}
+        <div className="panel">
+          <div className="section-title">
+            Disciplinas
+            <button className="collapse-toggle" onClick={() => toggle("disc")}>{collapsed.disc ? "▸" : "▾"}</button>
+          </div>
+          {!collapsed.disc && (
+            <>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>KN</th><th>Nome</th><th>Descrição</th><th>Requisito</th><th>XP</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {disciplines.map((slot, i) => {
+                      const data = DISCIPLINES.find(d => d.name === slot.selectedName);
+                      return (
+                        <tr key={i}>
+                          <td className="kn-cell" style={data && data.kn > knTotal ? { color: "var(--red)" } : {}}>{data ? data.kn : "—"}</td>
+                          <td>
+                            <TooltipSelect
+                              value={slot.selectedName}
+                              onChange={(name) => setDisciplineName(i, name)}
+                              items={[...DISCIPLINES].sort((a, b) => a.name.localeCompare(b.name))}
+                              labelFn={d => `[KN${d.kn}] ${d.name}`}
+                              renderTooltip={d => `
+                                <div class="spell-tooltip-name">${d.name}</div>
+                                <div class="spell-tooltip-meta">
+                                  <span>KN ${d.kn}</span>
+                                  <span>XP ${d.xp}</span>
+                                  ${d.requisite ? `<span style="color:#d44040">Req: ${d.requisite}</span>` : ""}
+                                </div>
+                                <div class="spell-tooltip-desc">${d.description}</div>
+                              `}
+                            />
+                          </td>
+                          <td className="desc-cell">{data ? (
+                            data.name === "Weapon Mastery" ? (
+                              <span>Selecione um tipo de arma: {["machados", "martelos", "armas de haste", "espadas"].map((w, wi) => (
+                                <span key={w}>
+                                  <span
+                                    onClick={() => setDisciplineChoice(i, w)}
+                                    style={{ cursor: "pointer", color: slot.choice === w ? "var(--gold)" : "inherit", fontWeight: slot.choice === w ? 700 : "inherit" }}
+                                  >{w}</span>{wi < 3 ? ", " : ". "}
+                                </span>
+                              ))}Ganha AD+1 ou +1 de dano com o tipo escolhido. Pode ser obtida múltiplas vezes.</span>
+                            ) : data.description
+                          ) : "—"}</td>
+                          <td className={`ro-cell ${data?.requisite ? "requisite" : ""}`}>{data?.requisite || "—"}</td>
+                          <td className="xp-cell">{data ? data.xp : "—"}</td>
+                          <td><button className="remove-btn" onClick={() => removeDiscipline(i)}>✕</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {disciplines.length < 10 && <button className="add-btn" onClick={addDiscipline}>+ Adicionar Disciplina</button>}
+            </>
+          )}
+        </div>
+
+        {/* Spells */}
+        <div className="panel">
+          <div className="section-title">
+            Feitiços
+            <button className="collapse-toggle" onClick={() => toggle("spells")}>{collapsed.spells ? "▸" : "▾"}</button>
+          </div>
+          {!collapsed.spells && (
+            <>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>KN</th><th>Nome</th><th>Escola</th><th>Cat.</th><th>Exaustão</th><th>Descrição</th><th>Duração</th><th>XP</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {spells.map((slot, i) => {
+                      const data = SPELLS.find(s => s.name === slot.selectedName);
+                      const spellKnStyle = data ? (
+                        race === "Forest Elf" && data.kn === knTotal + 1 ? { color: "var(--green)" } :
+                        data.kn > knTotal ? { color: "var(--red)" } : {}
+                      ) : {};
+                      return (
+                        <tr key={i}>
+                          <td className="kn-cell" style={spellKnStyle}>{data ? data.kn : "—"}</td>
+                          <td>
+                            <TooltipSelect
+                              value={slot.selectedName}
+                              onChange={(name) => setSpellName(i, name)}
+                              items={[...SPELLS].sort((a, b) => a.name.localeCompare(b.name))}
+                              labelFn={s => `[KN${s.kn}] ${s.name}`}
+                              renderTooltip={s => `
+                                <div class="spell-tooltip-name">${s.name}</div>
+                                <div class="spell-tooltip-meta">
+                                  <span>${s.school}</span>
+                                  <span>Cat. ${s.cat}</span>
+                                  <span>${s.exhaustion}</span>
+                                  ${s.duration ? `<span>${s.duration}</span>` : ""}
+                                </div>
+                                <div class="spell-tooltip-desc">${s.description}${s.dmgTable ? `<table style="margin-top:6px;border-collapse:collapse;width:100%;font-size:11px"><tr style="border-bottom:1px solid #555"><th style="padding:2px 6px;text-align:left">MT</th><th style="padding:2px 6px;text-align:left">Dano</th></tr>${s.dmgTable.map(r => `<tr><td style="padding:2px 6px">${r[0]}</td><td style="padding:2px 6px;color:#ff6666;font-weight:600">${r[1]}</td></tr>`).join("")}</table>` : ""}</div>
+                              `}
+                            />
+                          </td>
+                          <td className="ro-cell">{data ? data.school : "—"}</td>
+                          <td className="ro-cell">{data ? data.cat : "—"}</td>
+                          <td className="ro-cell">{data ? data.exhaustion : "—"}</td>
+                          <td className="desc-cell">{data ? (<>
+                            {data.description}
+                            {data.dmgTable && (
+                              <table style={{ marginTop: 4, borderCollapse: "collapse", fontSize: 10, width: "auto" }}>
+                                <thead><tr style={{ borderBottom: "1px solid var(--border)" }}><th style={{ padding: "1px 6px", textAlign: "left" }}>MT</th><th style={{ padding: "1px 6px", textAlign: "left" }}>Dano</th></tr></thead>
+                                <tbody>{data.dmgTable.map((r, ri) => <tr key={ri}><td style={{ padding: "1px 6px" }}>{r[0]}</td><td style={{ padding: "1px 6px", color: "var(--red)", fontWeight: 600 }}>{r[1]}</td></tr>)}</tbody>
+                              </table>
+                            )}
+                          </>) : "—"}</td>
+                          <td className="ro-cell">{data ? data.duration || "—" : "—"}</td>
+                          <td className="xp-cell">{data ? data.xp : "—"}</td>
+                          <td><button className="remove-btn" onClick={() => removeSpell(i)}>✕</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {spells.length < 10 && <button className="add-btn" onClick={addSpell}>+ Adicionar Feitiço</button>}
+            </>
+          )}
+        </div>
+
+        {/* Items */}
+        <div className="panel">
+          <div className="section-title">
+            Itens
+            <button className="collapse-toggle" onClick={() => toggle("items")}>{collapsed.items ? "▸" : "▾"}</button>
+          </div>
+          {!collapsed.items && (
+            <>
+              {items.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 80px 30px", gap: 6, marginBottom: 4 }}>
+                  <span className="stat-label" style={{ textAlign: "left" }}>Nome</span>
+                  <span className="stat-label" style={{ textAlign: "left" }}>Descrição</span>
+                  <span className="stat-label" style={{ textAlign: "left" }}>Valor</span>
+                  <span></span>
+                </div>
+              )}
+              {items.map((item, i) => (
+                <div className="item-row" key={i}>
+                  {item.custom ? (
+                    <>
+                      <input className="item-input" value={item.name} onChange={e => updateItem(i, "name", e.target.value)} placeholder="Nome do item" />
+                      <input className="item-input" value={item.description} onChange={e => updateItem(i, "description", e.target.value)} placeholder="Descrição" />
+                      <input className="item-input" value={item.value} onChange={e => updateItem(i, "value", e.target.value)} placeholder="Valor" />
+                    </>
+                  ) : (
+                    <>
+                      <input className="item-input readonly" value={item.name} readOnly title={item.name} />
+                      <input className="item-input readonly" value={item.description} readOnly title={item.description} />
+                      <input className="item-input readonly" value={item.value} readOnly title={`${item.value} gp`} />
+                    </>
+                  )}
+                  <button className="remove-btn" onClick={() => removeItem(i)}>✕</button>
+                </div>
+              ))}
+              {items.length < 20 && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button className="add-btn" onClick={addCustomItem}>+ Item Personalizado</button>
+                  <select className="race-select" value="" onChange={e => { addStandardItem(e.target.value); }} style={{ flex: "1 1 200px", padding: "6px 10px", fontSize: "13px", fontFamily: "'Crimson Pro', serif", fontWeight: 400, letterSpacing: 0 }}>
+                    <option value="">+ Item Padrão...</option>
+                    {STANDARD_ITEMS.map(si => <option key={si.name} value={si.name}>{si.name} — {si.value}gp</option>)}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Índice de Conceitos */}
+        <div className="panel">
+          <div className="section-title">
+            Índice de Conceitos
+            <button className="collapse-toggle" onClick={() => toggle("glossary")}>{collapsed.glossary ? "▸" : "▾"}</button>
+          </div>
+          {!collapsed.glossary && (() => {
+            const glossaryEntries = [
+                { term: "Actions while Grappled", text: "Se você estiver Agarrado (Grappled), poderá realizar apenas as seguintes Ações (apenas uma por turno):\n\nSacar uma arma — Geralmente uma faca ou adaga.\n\nAtacar com as mãos — Ou usar uma adaga, faca, katar ou cestus. Isso requer um teste de AD normal. Note que adagas e facas causam +2 de dano extra quando usadas durante um Agarrão.\n\nDefender — Concede a você um Dado de Defesa contra todos os ataques pelo restante do turno. Note que a ação de Defender normalmente deve ser declarada no início da fase de Ações, mas tornar-se Agarrado abre uma exceção: se você ainda não realizou sua Ação no turno e um inimigo o agarra com sucesso, você pode escolher Defender em seu turno de agir.\n\nTentar lançar um feitiço — Todos os inimigos na Pilha de Agarrão (Grapple Pile) ganham um Dado de Defesa para tentar impedir que você conjure o feitiço.\n\nTentar escapar do Agarrão — Isso requer um teste de Agarrão resistido. Se houver mais de um inimigo na Pilha de Agarrão, sua rolagem é contra o oponente com a maior pontuação de Agarrão, e cada inimigo adicional ganha uma rolagem de Dado de Defesa para tentar bloquear sua fuga. Se tiver sucesso, você se arrasta para um hexágono vazio adjacente. Você continua Caído (Prone). Não é possível escapar de uma Pilha de Agarrão se não houver hexágonos vazios adjacentes." },
+                { term: "Ataques Múltiplos", text: "Disciplinas e itens mágicos podem permitir mais de 2 ataques por turno. Cada ataque subsequente após o segundo sofre penalidades cumulativas:\n\n3º ataque: AD-1.\n4º ataque: AD-2.\n5º ataque: AD-3." },
+                { term: "Attacking Enemies in a Grapple Pile", text: "Se você estiver adjacente a uma Pilha de Agarrão (Grapple Pile) e desejar atacar um inimigo nela, o inimigo terá Cobertura Parcial devido aos outros combatentes no agarrão, ganhando assim um Dado de Defesa. No entanto, como o inimigo está Caído (Prone), você recebe +4 AD na sua rolagem de ataque. Se você errar o ataque, deverá realizar um teste de AD para evitar atingir seus aliados na pilha; um sucesso significa que você não os atingiu. Você deve rolar uma vez para cada aliado, mas se falhar, atingirá apenas um deles. Você NÃO recebe o bônus de +4 AD para evitar atingir seus aliados, mas eles também não rolam um Dado de Defesa. Se atingir um aliado, você causa seu dano rotineiro.\n\nAtaques à Distância contra a Pilha — Se você atacar um inimigo agarrado com uma arma à distância, aplicam-se as mesmas regras do combate corpo a corpo, com as seguintes diferenças: Em vez de apenas o bônus de +4 AD, o inimigo recebe um Dado de Defesa por estar Caído e outro Dado de Defesa pela cobertura parcial do seu aliado, totalizando 2 Dados de Defesa. Se errar, você deve fazer testes de AD para evitar atingir cada aliado; é perigoso disparar contra uma Pilha de Agarrão!\n\nObservação — Se o conjurador de um Feitiço de Arremesso (Thrown Spell) estiver em um hexágono adjacente, o alvo recebe apenas 1 Dado de Defesa em vez de 2.\n\nFeitiços em Aliados no Agarrão — Se você lançar um feitiço benéfico (buff) em um aliado na pilha, não é necessário rolar contra a cobertura parcial, pois o aliado deseja ser \"atingido\". No entanto, se o feitiço falhar (errar), você deve rolar para evitar atingir cada inimigo na pilha; em caso de falha, você acabará lançando o benefício em um inimigo!\n\nEntrando no Agarrão — Durante a fase de Ações, em vez de atacar de fora, um herói pode decidir se juntar à Pilha de Agarrão movendo seu combatente para cima da pilha de figuras (standees). O herói torna-se Caído e, se ainda estiver em sua fase de Ação, pode realizar imediatamente uma rolagem de ataque como um Agarrador (Grappler), usando punhos ou armas permitidas (adaga, faca, katar ou cestus)." },
+                { term: "Defending", text: "Como uma Ação, os combatentes podem escolher Defender, focando sua fase de Ações exclusivamente em evitar serem atingidos por qualquer ataque ou feitiço.\n\nRestrições — Combatentes que defendem não podem atacar nem realizar qualquer outra ação.\n\nDeclaração — Você deve declarar que está Defendendo no início da fase de Ações, antes que qualquer outro combatente realize ações de ataque.\n\nBenefício — O defensor ganha o direito de rolar um Dado de Defesa para cada ataque direcionado a ele durante todo o turno." },
+                { term: "Embattle", text: "Ao se mover, você deve parar imediatamente quando um inimigo puder atingi-lo com um ataque corpo a corpo e encerrar todo o movimento pelo restante da fase de movimento daquele turno. Isso ocorre quando você entra em um hexágono frontal que seja adjacente a um inimigo. Enquanto estiver nos hexágonos frontais de um inimigo, diz-se que você está Embattled. Combatentes que estão em hexágonos frontais de seus inimigos estão Embattled. Se o inimigo tiver Reach (Alcance), que é uma habilidade especial que concede a capacidade de atacar uma criatura a dois hexágonos de distância na direção dos hexágonos frontais, você se torna Embattled pelo seu inimigo ao se mover para até dois hexágonos de distância dele, assim que o inimigo puder atacá-lo com seu Alcance.\n\nQuando um inimigo o impede de continuar se movendo porque você agora está Embattled, contanto que você esteja de frente para o inimigo, ele também estará Embattled. Isso significa que o inimigo também não poderá realizar o movimento completo durante a fase de movimento dele. Isso é verdade mesmo que o inimigo tenha Alcance e você esteja a 2 hexágonos de distância e não possa atacar; para mantê-lo sob controle, o inimigo deve permanecer Embattled.\n\nObserve que você não está Embattled em um hexágono lateral, portanto, não precisa parar ao entrar pela primeira vez em um hexágono lateral ou traseiro. Além disso, inimigos que estão caídos (prone) ou em uma Pilha de Agarrão (Grapple Pile) não podem atacá-lo com um ataque corpo a corpo, portanto, você não fica Embattled por eles; você pode se mover livremente por inimigos caídos." },
+                { term: "Grapple", text: "O Agarrão é uma ação de ataque específica na qual um combatente tenta derrubar um inimigo. Diferente dos ataques corpo a corpo e à distância, o Agarrão é um Teste Resistido (Opposed Check). A dificuldade (AD) do teste é determinada pela diferença entre a pontuação de Agarrão do atacante e a do defensor. Como em todos os Testes Resistidos, o combatente com a maior pontuação realiza o teste (em caso de empate, a equipe dos Heróis realiza o teste).\n\nCom uma ação de Agarrão bem-sucedida: O atacante move-se para o hexágono do defensor e o derruba. Ambos os combatentes ficam Caídos (Prone) em uma Pilha de Agarrão (Grapple Pile). As figuras (standees) são empilhadas no mesmo hexágono para indicar que estão Caídos. O atacante pode realizar imediatamente um ataque corpo a corpo contra o defensor agarrado usando um ataque de agarrão apropriado que tenha em mãos. Importante: Não se pode atacar com armas comuns durante um Agarrão, exceto com adaga, faca, katar ou cestus.\n\nInimigos e Monstros — Alguns inimigos usam o Agarrão como tática rotineira. Monstros com ataques naturais (garras ou mordida) podem usá-los enquanto agarram e, às vezes, causam mais dano nessa situação. Certos monstros possuem Especialista em Agarrão (Grappling Expertise), o que lhes concede uma segunda chance de agarrar caso a primeira tentativa falhe.\n\nRestrições da Pilha de Agarrão (Grapple Pile) — Todos os combatentes em uma Pilha de Agarrão sofrem restrições significativas: é difícil escapar da Pilha de Agarrão; não é mais possível atacar inimigos adjacentes nem deixá-los em estado de Embattled; após escapar do Agarrão, ainda é necessário um turno inteiro para se levantar da posição de Caído." },
+                { term: "Inimigos Caídos", text: "Combatentes Caídos não podem deixar ninguém Embattled; você pode passar livremente por eles." },
+                { term: "Levantar-se de Caído (Prone)", text: "Quando você escolhe esta Ação, você pode se levantar no seu próprio hexágono ou em um hexágono adjacente que esteja vazio. Você pode realizar um Withdraw (Retirada) ao escolher esta opção.\n\nSe estiver Caído, você pode atacar com uma besta ou lançar um feitiço. Você não pode atacar com arco ou funda. Você não pode realizar um ataque corpo a corpo, a menos que esteja em um Agarrão (Grapple) com outro inimigo, caso em que poderá atacar com um golpe desarmado, uma adaga, uma faca ou um cestus." },
+                { term: "Melee Attacks", text: "Você deve estar adjacente a um inimigo para golpear com uma arma corpo a corpo, como uma espada, machado, martelo ou cajado. A exceção são as Armas de Haste com Alcance (Reach), que podem atacar tanto de um hexágono adjacente quanto a 2 hexágonos de distância. Você recebe um bônus de +4 AD ao atacar um inimigo Caído (Prone) com um ataque corpo a corpo." },
+                { term: "Movimento e Embattlement", text: "Você deve parar quando um inimigo puder atingi-lo com um ataque corpo a corpo, encerrando sua fase de Movimento; você se torna Embattled. Se você também puder atingir seu inimigo com um ataque corpo a corpo, ambos se tornam Embattled." },
+                { term: "Pivot", text: "Se você começar seu movimento já na condição Embattled, poderá mover-se apenas 1 hexágono (chamado de Pivot). Você deve permanecer adjacente a todos os inimigos com quem já estava adjacente ao realizar o Pivot. Se estiver adjacente a dois inimigos, não poderá realizar o Pivot, pois precisaria manter a adjacência com ambos simultaneamente." },
+                { term: "Posicionamento Tático", text: "É possível deixar um inimigo Embattled sem que você fique na mesma condição. Isso ocorre se você estiver nos hexágonos laterais ou traseiros dele, mas ele estiver no seu hexágono frontal." },
+                { term: "Ranged Attacks", text: "Incluem ataques com fundas, arcos, bestas e armas de arremesso da lista de armas corpo a corpo, além de feitiços da categoria \"Arremessados\" (Thrown). Arcos e bestas podem ser disparados contra alvos a até 9 hexágonos de distância sem penalidade.\n\nRestrição de Combate — Você não pode atacar com arco, besta ou funda se estiver em estado de Embattled (em combate direto) por um inimigo. No entanto, você pode arremessar uma arma ou lançar feitiços de arremesso/distância mesmo estando Embattled.\n\nAlvos Caídos — Inimigos caídos são difíceis de atingir à distância e recebem um Dado de Defesa como se tivessem Cobertura Parcial. A exceção é se você lançar um feitiço de um hexágono adjacente ao alvo caído; nesse caso, ele não recebe cobertura." },
+                { term: "Reach (Alcance)", text: "Combatentes com armas de Alcance (como lanças) que deixam um inimigo Embattled a dois hexágonos de distância também se tornam Embattled, devido à concentração necessária para manter o inimigo sob controle.\n\nSe você estiver Embattled pelo alcance de um inimigo no início do turno (não estando adjacente a ele), você pode fazer um Pivot de 1 hexágono em qualquer direção, inclusive para fora do alcance ou para se aproximar." },
+                { term: "Reposicionamento", text: "No final da fase de Movimento, após o último combatente se ter movido, todos os heróis e inimigos podem rodar as suas figuras (standees) para uma posição ideal, de modo a colocar os seus hexágonos frontais virados para os inimigos e os hexágonos traseiros afastados deles. Os heróis podem reposicionar as suas figuras primeiro. Eles podem escolher reposicioná-las em qualquer ordem.\n\nOs inimigos reposicionam as suas figuras depois de os heróis terem terminado o seu reposicionamento. Salvo indicação em contrário pelo Loremaster, os inimigos irão reposicionar-se seguindo estas regras, por esta ordem: 1) ficarão virados para o maior número de heróis; 2) ficarão virados para o herói que lhes causou mais dano no combate; 3) ficarão virados para o herói que os atingiu mais recentemente.\n\nOs combatentes podem ser reposicionados novamente em resposta à orientação dos inimigos. Por exemplo, se um herói decidiu originalmente ficar virado para um goblin e, em seguida, um ogre rodou para ficar virado para o herói, o herói pode decidir reposicionar-se novamente e, desta vez, ficar virado para o ogre.\n\nNote que o reposicionamento pode alterar quais os combatentes adjacentes que estão em estado de Embattled ou não, porque, ao rodar, um combatente pode reposicionar os seus hexágonos frontais para colocar um inimigo diferente em Embattled. Assim que todos os jogadores concordarem que as rotações estão concluídas, prossiga para a fase de Ações." },
+                { term: "Restrições de Movimento", text: "Não é permitido mover-se através de outro combatente que esteja de pé, seja ele aliado ou inimigo. No entanto, pode mover-se através de um hexágono que contenha um combatente Caído (ou um corpo). Também pode permanecer num hexágono com um combatente Caído (ou corpo). Quando se move através de, ou permanece num hexágono com um combatente Caído ou corpo, deve realizar um Teste de Atletismo Simples (AD+2) ou cairá imediatamente na posição de Caído no mesmo hexágono, em cima do corpo, e a sua fase de Movimento termina.\n\nNo início da fase de Movimento, cada herói deve planear as suas Ações para mais tarde na fase de Ações, pois algumas Ações não estarão disponíveis se se mover demasiado longe. Pode desejar ficar parado ou mover-se apenas um hexágono durante a fase de Movimento, pois existem muitas Ações que não poderá realizar na fase de Ações se estiver a Correr. Correr é definido como mover-se dois ou mais hexágonos num turno.\n\nAs seguintes Ações só estarão disponíveis durante a fase de Ações se limitar o seu movimento a zero ou um hexágono: atacar com uma arma à distância, como um arco, besta ou funda; lançar um feitiço; retirar-se de um inimigo; trocar de armas e/ou escudo; apanhar uma arma largada; retirar um item, como uma poção ou tocha, de uma mochila ou bolsa de cinto; beber uma poção ou acender uma tocha; levantar-se de uma posição de Caído; abrir uma porta ou um baú." },
+                { term: "Rotação", text: "Ao final do movimento, os combatentes podem rotacionar, mudando para onde estão virados e, consequentemente, quem eles deixam Embattled." },
+                { term: "Salto", text: "Saltar é uma atividade de Movimento. Um teste de Atletismo Simples com AD+2 é necessário para se mover sobre um corpo, uma figura caída (prone) ou um objeto de tamanho semelhante que esteja no chão ocupando um hexágono. O fracasso faz com que o herói caia na posição de caído no hexágono com o objeto.\n\nUm herói ou combatente pode tentar saltar sobre um hexágono e aterrar no hexágono seguinte sem tocar no hexágono que está a saltar, realizando um Teste de Atletismo Moderado AD+0. O fracasso faz com que o saltador aterre no hexágono que tentava saltar. Se esse hexágono tiver um objeto, como um corpo, o saltador fica caído nesse hexágono. Se o hexágono for um poço (pit), o saltador pode fazer imediatamente outro Teste de Atletismo Moderado AD+0 para se agarrar à borda do poço no lado oposto. Com um fracasso, o saltador cai. Com sucesso, o saltador é considerado como estando caído no hexágono do poço. Numa fase de Ações de um turno subsequente, o saltador agarrado à borda pode tentar subir com outro Teste de Atletismo Moderado.\n\nUm herói ou combatente pode tentar saltar sobre dois hexágonos e aterrar no hexágono seguinte. Para o fazer, o saltador deve declarar a sua intenção de saltar dois hexágonos antes de fazer a tentativa. O saltador também deve ter Movimento suficiente restante para tentar o salto, que é de pelo menos três pontos de Movimento antes de saltar. Ao saltar sobre dois hexágonos: o saltador rola primeiro para ultrapassar o primeiro hexágono fazendo um Teste de Atletismo Moderado a AD+0. Com um fracasso, o saltador cai no primeiro hexágono. Com sucesso, o saltador deve então rolar um Teste de Atletismo Difícil a AD-2 para ultrapassar o segundo hexágono. O fracasso resulta em cair no segundo hexágono.\n\nSe um hexágono estiver ocupado por um objeto da altura da cintura ou mais alto, o hexágono não pode ser saltado com estas regras. O Loremaster pode indicar a ação necessária para passar por cima do objeto." },
+                { term: "Spell Cancelation", text: "Um herói que tenha um Feitiço com duração ativa pode cancelá-lo a qualquer momento, durante qualquer Fase, mesmo que não seja o seu turno de agir. Isso inclui criaturas invocadas, encantamentos e feitiços de continuidade (furtherance)." },
+                { term: "Spell Cast", text: "Heróis podem lançar um feitiço durante a fase de Ações. Para isso, devem ter sucesso em um teste de AD Base. Se forem bem-sucedidos, pagam imediatamente o custo de Exaustão (E) do feitiço. A Exaustão é uma perda temporária de HP, igual à perda por ferimentos, exceto que o HP perdido por Exaustão é recuperado rapidamente com descanso; portanto, acompanhe a perda de HP por ferimentos separadamente da perda por Exaustão. Muitos feitiços podem ter efeito por mais de 1 turno se o herói pagar um custo contínuo de Exaustão. Este custo deve ser pago no início da Ação do herói, começando no turno seguinte ao lançamento original. Um herói pode manter um feitiço existente e lançar um novo, sendo possível ter vários feitiços ativos ao mesmo tempo.\n\nCrítico — Se o conjurador rolar um Crítico, não há custo inicial de Exaustão, mas custos contínuos em turnos subsequentes ainda se aplicam.\n\nFalha — Se falhar no teste de AD, nenhum custo de Exaustão é pago.\n\nCategorias de Feitiços:\n\nArremessados (Thrown [T]) — Utilizam as mesmas regras de Cobertura e Incrementos de Alcance que armas de arremesso. O custo de Exaustão só é pago se o feitiço for bem-sucedido. Exemplos incluem feitiços negativos contra inimigos (Trip, Clumsiness) ou de proteção para aliados (Elemental Protection, Blur).\n\nCriação (Creation [C]) — Resultam no aparecimento de um objeto, efeito ou criatura a até 3 hexágonos do herói. Criaturas Invocadas e Imagens devem ser criadas em um hexágono vazio e não podem agir no turno em que surgem. Outras criações, como Flux, podem ser criadas em um hexágono já ocupado.\n\nInvocação (Summoning) — Invoca uma criatura para lutar. Exige Exaustão a cada turno para persistir. A criatura pode lutar e ser morta normalmente.\n\nImagem (Image) — São miragens sem substância e não podem lutar (erram ataques automaticamente). Se atingidas por ataque ou feitiço, elas \"estouram\" e desaparecem. Elas causam e sofrem a condição Embattled em inimigos, servindo como ótimos bloqueadores. Se um inimigo tentar agarrar uma imagem, ele faz um teste de AD Base: sucesso cancela a imagem; falha faz o inimigo cair Caído (Prone).\n\nPróprio (Self [S]) — Aplicados diretamente ao herói que conjurou. Não podem ser lançados em outros. Exemplo: feitiços de mudança de forma como Guise of the Beast." },
+                { term: "Spell Renew & Items", text: "Você deve escolher pagar o custo de Exaustão para feitiços contínuos e itens mágicos no início da sua Ação ou cancelar o efeito do feitiço ou item. Se um herói estiver inconsciente, seus feitiços que exigem renovação de exaustão são cancelados no início da fase de Ação do combatente inconsciente. Isso inclui criaturas invocadas e imagens." },
+                { term: "Spell Resolve Result", text: "A Exaustão do feitiço é acumulada após a aplicação dos efeitos da magia. É possível ficar inconsciente devido ao custo de Exaustão ao lançar um feitiço. Por exemplo, um herói pode lançar um feitiço de Fogo sob um inimigo, queimando-o, e então cair inconsciente se o impacto da Exaustão reduzir seus pontos de vida a 0. O fogo continuaria queimando. No entanto, todos os feitiços que exigem custo contínuo de exaustão a cada turno serão cancelados automaticamente no início do próximo turno do conjurador inconsciente." },
+                { term: "Spell Scrolls", text: "Uma vez que um pergaminho é usado para lançar um feitiço, ele é consumido pela magia e não pode ser usado novamente. Os pergaminhos só desaparecem após o feitiço ser lançado com sucesso, e não em caso de falha.\n\nNível de Conhecimento (KN) — Pergaminhos são categorizados por seu nível de Conhecimento e heróis podem tentar utilizar pergaminhos de qualquer nível.\n\nCusto de XP — Feitiços lançados por pergaminhos não custam XP, pois o feitiço não é aprendido permanentemente.\n\nUso — Para usar um pergaminho, o herói deve primeiro tê-lo em mãos e realizar um Teste de AD Base durante sua fase de Ação.\n\nDificuldade — A dificuldade do teste é +/- 1AD por ponto de diferença entre o KN do pergaminho e o KN do herói. Exemplo: Um herói com KN 2 tenta usar um pergaminho KN 3 — a dificuldade aumenta em 1, resultando em -1AD. Um herói com KN 3 tenta usar um pergaminho KN 2 — a dificuldade facilita em 1, resultando em +1AD.\n\nResolução — Se for bem-sucedido, o feitiço é lançado como se o herói o conhecesse, e a Exaustão é paga normalmente conforme os requisitos do feitiço." },
+                { term: "Surprise", text: "A campanha pode declarar que uma das equipes em combate surpreendeu o outro grupo, concedendo Surpresa. A Surpresa concede aos combatentes um turno completo e gratuito de ação, incluindo as fases de Movimento e de Ação. Após o turno de Surpresa, o combate continuará normalmente, começando pela Iniciativa.\n\nNote também que, geralmente, combatentes surpreendidos não estão com suas armas sacadas; portanto, o primeiro turno de ação para combatentes desarmados pode ser apenas para sacar uma arma e um escudo. Isso pode significar que um combatente surpreendido pode perder vários turnos antes de conseguir realizar uma ação significativa." },
+                { term: "Trocar ou Sacar Armas", text: "Se você se moveu 1 hexágono ou menos, você pode guardar as armas e o escudo que estão em suas mãos e sacar novas armas ou um escudo como sua ação.\n\nSe você se moveu mais de 1 hexágono durante a fase de Movimento, então você pode largar o(s) item(ns) em sua mão (se houver) em qualquer um dos hexágonos pelos quais você passou.\n\nVocê pode sacar um item durante sua fase de Ações.\n\nComo esta é a sua Ação, você não pode atacar no turno em que saca itens." },
+                { term: "Voo", text: "Voar é uma atividade de Movimento. Criaturas voadoras terão duas velocidades listadas. A primeira é o seu movimento terrestre, a segunda é o seu movimento de voo. Por exemplo, \"5 / 8\" seriam 5 de Movimento no chão e 8 de Movimento enquanto voa. A menos que indicado de outra forma pelo Loremaster, inimigos que podem voar começarão um encontro no chão.\n\nCriaturas voadoras podem começar a voar a partir da imobilidade. Se estiverem no chão, podem voar e mover-se no ar logo no seu primeiríssimo hexágono de movimento. No entanto, elas não podem levantar voo se estiverem na condição Embattled, a menos que usem a ação Withdraw (Retirar-se).\n\nMova as criaturas voadoras no mapa da mesma maneira que qualquer outro combatente, exceto que as criaturas voadoras não ficam Embattled por combatentes no chão; elas podem voar ao lado e sobre outros combatentes livremente. Isso significa que elas podem ocupar o mesmo hexágono no mapa que um combatente no chão. Da mesma forma, criaturas voadoras não deixam Embattled os combatentes no chão, nem deixam Embattled outras criaturas voadoras. Criaturas voadoras podem voar sobre inimigos e aterrar adjacentes — geralmente atrás — de um inimigo, e então atacar com um ataque corpo a corpo.\n\nCombatentes no chão não podem atacar criaturas voadoras com um ataque corpo a corpo, incluindo armas de Alcance (Reach), e vice-versa. No entanto, criaturas voadoras podem atacar outras criaturas voadoras adjacentes com ataques corpo a corpo.\n\nPenalidades e Ajustes de Dificuldade (AD): Criaturas voadoras têm AD-1 para lançar qualquer Feitiço e AD-2 para atacar com ataques corpo a corpo ou à distância. Combatentes no chão que atacam uma criatura voadora com um ataque à distância ou feitiço têm AD-3. Os incrementos de alcance contam a distância em hexágonos como se a criatura voadora estivesse no chão." },
+                { term: "Withdraw", text: "Você não pode se afastar de um inimigo adjacente durante a fase de Movimento. Isso só pode ser feito na fase de Ações através da manobra Withdraw.\n\nEm vez de atacar, você pode mover sua figura para qualquer hexágono adjacente. Você pode optar por permanecer em estado de Embattled (Em Combate) se desejar, mas o mais provável é que você se mova um hexágono para não estar mais nessa condição, seja recuando um hexágono para não estar mais adjacente ou realizando um Pivot para um hexágono lateral do inimigo, de modo que ele não possa atacá-lo. Note que, se você tiver um AD Base maior que o do seu inimigo, poderá realizar sua Ação primeiro, permitindo que você se retire antes que o inimigo possa golpeá-lo." },
+            ];
+            const selected = glossaryEntries.find(e => e.term === glossarySelected);
+            return (
+              <div className="glossary-section">
+                <select
+                  className="race-select"
+                  style={{ width: "100%", marginBottom: 12, fontSize: 14 }}
+                  value={glossarySelected}
+                  onChange={e => setGlossarySelected(e.target.value)}
+                >
+                  <option value="">— Selecionar conceito —</option>
+                  {glossaryEntries.map((e, i) => <option key={i} value={e.term}>{e.term}</option>)}
+                </select>
+                {selected && (
+                  <div className="glossary-entry" style={{ borderBottom: "none" }}>
+                    <div className="glossary-term">{selected.term}</div>
+                    <div className="glossary-text">{selected.text}</div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+
+      </div>
+    </>
+  );
+}
